@@ -1,3 +1,31 @@
+// ── GLOBAL ERROR HANDLER ──
+window.addEventListener('error', function(event) {
+  showPopup('JS Error: ' + event.message + '<br><small>' + (event.filename || '') + ':' + (event.lineno || '') + '</small>');
+});
+window.addEventListener('unhandledrejection', function(event) {
+  showPopup('Promise Error: ' + (event.reason && event.reason.message ? event.reason.message : event.reason));
+});
+
+// ── HASH NAVIGATION FOR TOPICS ──
+window.addEventListener('hashchange', handleHashNavigation);
+function handleHashNavigation() {
+  const hash = window.location.hash;
+  if (hash && hash.startsWith('#topic-')) {
+    const id = hash.replace('#topic-', '');
+    expanded[id] = true;
+    filterAndRender();
+    setTimeout(() => {
+      const el = document.getElementById('topic-' + id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
+}
+// On page load, handle hash if present
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.location.hash && window.location.hash.startsWith('#topic-')) {
+    handleHashNavigation();
+  }
+});
 // ── FUTURE SECTIONS LOGIC PLACEHOLDER ──
 // To add logic for new sections (e.g., System Design),
 // create new functions here and link them to your UI as needed.
@@ -12,15 +40,250 @@ const API = window.location.origin + '/api';
 
 // ── STATE ─────────────────────────────────────────────────
 let token = localStorage.getItem('dsa_token') || null;
+let activeView = localStorage.getItem('dsa_active_view') || 'dsa';
 let currentUser = null;
 let topics = [];          // [{_id, name, emoji, questions:[]}]
 let progressMap = {};     // { questionId: { status, solvedAt } }
 let expanded = {};
 let modalQ = null;
 let toastTimer = null;
+let sysTopicFilter = 'All';
+
+const SYSTEM_DESIGN_KB = [
+  {
+    id: 'interview-flow',
+    topic: 'Interview',
+    title: 'System design interview flow (step-by-step)',
+    summary: 'A repeatable 10–15 min structure to avoid getting stuck.',
+    answerHtml: `
+      <h4>Goal</h4>
+      <div>Show structured thinking: requirements → architecture → trade-offs → reliability.</div>
+      <h4>Suggested flow</h4>
+      <ul>
+        <li>Clarify functional requirements (features) + non-functional requirements (latency, QPS, availability).</li>
+        <li>Estimate scale (users, requests/sec, storage growth) to justify design choices.</li>
+        <li>Define APIs (request/response) and rough data model.</li>
+        <li>High-level design: clients → LB → services → DB/cache/queue/CDN.</li>
+        <li>Deep dive into the hottest path (read/write path), caching strategy, consistency, and failure modes.</li>
+        <li>Wrap with trade-offs + what you would do next with more time (observability, capacity, cost).</li>
+      </ul>
+    `,
+    diagram: diagramBasicWebService(),
+  },
+  {
+    id: 'cap',
+    topic: 'Fundamentals',
+    title: 'CAP theorem + consistency models (what matters in interviews)',
+    summary: 'Pick the right consistency for the product (not just buzzwords).',
+    answerHtml: `
+      <h4>CAP (simplified)</h4>
+      <ul>
+        <li><b>Consistency</b>: every read sees the latest write.</li>
+        <li><b>Availability</b>: every request gets a non-error response.</li>
+        <li><b>Partition tolerance</b>: system continues despite network splits.</li>
+      </ul>
+      <div>In real distributed systems, partitions can happen, so you usually choose trade-offs between <b>Consistency</b> and <b>Availability</b>.</div>
+      <h4>Common models</h4>
+      <ul>
+        <li><b>Strong consistency</b>: great for money/inventory, higher latency/complexity.</li>
+        <li><b>Eventual consistency</b>: great for feeds/likes/views, easier to scale.</li>
+        <li><b>Read-your-writes</b>: UX-friendly compromise (users see their own updates quickly).</li>
+      </ul>
+      <h4>Interview tip</h4>
+      <div>Always tie it to product: “We can accept eventual consistency for view counts, but not for payments.”</div>
+    `,
+    diagram: diagramReplication(),
+  },
+  {
+    id: 'load-balancing',
+    topic: 'Networking',
+    title: 'Load balancers: L4 vs L7 + sticky sessions',
+    summary: 'How traffic enters your system and why L7 matters.',
+    answerHtml: `
+      <h4>What a load balancer does</h4>
+      <ul>
+        <li>Distributes traffic across instances.</li>
+        <li>Health checks + removes bad nodes.</li>
+        <li>Enables horizontal scaling and blue/green deploys.</li>
+      </ul>
+      <h4>L4 vs L7</h4>
+      <ul>
+        <li><b>L4</b> (TCP/UDP): faster, less context, good for simple routing.</li>
+        <li><b>L7</b> (HTTP): can route by path/header, do auth, rate limiting, A/B routing.</li>
+      </ul>
+      <h4>Sticky sessions</h4>
+      <div>Avoid if you can. Prefer stateless services + centralized session store (Redis) or JWT.</div>
+    `,
+    diagram: diagramLB(),
+  },
+  {
+    id: 'caching',
+    topic: 'Caching',
+    title: 'Caching patterns: cache-aside, write-through, write-back',
+    summary: 'Caching is usually the fastest win for performance.',
+    answerHtml: `
+      <h4>Cache-aside (most common)</h4>
+      <ul>
+        <li>Read: app checks cache → miss → DB → populate cache.</li>
+        <li>Write: app writes DB → invalidates/updates cache.</li>
+      </ul>
+      <h4>Write-through</h4>
+      <div>Writes go to cache, cache writes to DB. Consistent but higher write latency.</div>
+      <h4>Write-back</h4>
+      <div>Writes go to cache and async to DB (fast, but risk of data loss on cache failure).</div>
+      <h4>Hard problems</h4>
+      <ul>
+        <li>Invalidation + TTL selection</li>
+        <li>Hot keys (one key hammered by many requests)</li>
+        <li>Cache stampede (many clients miss at once)</li>
+      </ul>
+    `,
+    diagram: diagramCacheAside(),
+  },
+  {
+    id: 'rate-limiter',
+    topic: 'Networking',
+    title: 'Design a rate limiter (token bucket vs leaky bucket)',
+    summary: 'Protects APIs and stabilizes downstream systems.',
+    answerHtml: `
+      <h4>Where to enforce</h4>
+      <ul>
+        <li>At CDN / API gateway / edge proxy (preferred)</li>
+        <li>Inside service (fallback)</li>
+      </ul>
+      <h4>Algorithms</h4>
+      <ul>
+        <li><b>Token bucket</b>: smooth bursts up to bucket size; refill rate controls average.</li>
+        <li><b>Leaky bucket</b>: outputs at constant rate; bursty input is queued/dropped.</li>
+        <li><b>Fixed window</b>: simplest but boundary spikes.</li>
+        <li><b>Sliding window</b>: more accurate, more expensive.</li>
+      </ul>
+      <h4>Distributed implementation</h4>
+      <div>Use Redis with atomic increments + TTL (or Lua script) to avoid race conditions.</div>
+    `,
+    diagram: diagramRateLimiter(),
+  },
+  {
+    id: 'url-shortener',
+    topic: 'Designs',
+    title: 'Design a URL shortener (bit.ly)',
+    summary: 'Classic: hash/ID generation, redirects, analytics, abuse prevention.',
+    answerHtml: `
+      <h4>Core requirements</h4>
+      <ul>
+        <li>Create short URL for a long URL</li>
+        <li>Redirect quickly (low latency)</li>
+        <li>Optional: custom alias, expiry, analytics</li>
+      </ul>
+      <h4>Data model</h4>
+      <ul>
+        <li><code>short_code</code> → <code>long_url</code>, createdAt, expiresAt, ownerId</li>
+      </ul>
+      <h4>Code generation options</h4>
+      <ul>
+        <li>Auto-increment ID → Base62 encode (simple, scalable with ID service)</li>
+        <li>Random string (collision handling needed)</li>
+      </ul>
+      <h4>Scaling</h4>
+      <ul>
+        <li>Cache hot redirects in Redis</li>
+        <li>Use CDN/edge caching for ultra-hot URLs</li>
+      </ul>
+    `,
+    diagram: diagramUrlShortener(),
+  },
+  {
+    id: 'feed',
+    topic: 'Designs',
+    title: 'Design a news feed (push vs pull)',
+    summary: 'Choosing between fanout-on-write and fanout-on-read.',
+    answerHtml: `
+      <h4>Two main approaches</h4>
+      <ul>
+        <li><b>Fanout-on-write (push)</b>: when user posts, write to followers’ timelines. Fast reads, heavy writes.</li>
+        <li><b>Fanout-on-read (pull)</b>: compute feed at read time by fetching recent posts from followed users. Cheaper writes, heavier reads.</li>
+      </ul>
+      <h4>Hybrid (common)</h4>
+      <div>Push for normal users; pull for “celebrity” accounts with massive follower count.</div>
+      <h4>Storage</h4>
+      <ul>
+        <li>Posts store + follow graph store</li>
+        <li>Timeline store (materialized) if using push/hybrid</li>
+      </ul>
+    `,
+    diagram: diagramFeed(),
+  },
+  {
+    id: 'queues',
+    topic: 'Messaging',
+    title: 'Queues + stream processing (Kafka vs RabbitMQ mental model)',
+    summary: 'When to decouple services and smooth spikes.',
+    answerHtml: `
+      <h4>Why queues</h4>
+      <ul>
+        <li>Absorb bursts (protect DB/services)</li>
+        <li>Async jobs: emails, notifications, video processing</li>
+        <li>Retry + dead letter queues</li>
+      </ul>
+      <h4>Queue vs log</h4>
+      <ul>
+        <li><b>Classic queue</b>: messages consumed and removed (work distribution).</li>
+        <li><b>Log/stream</b>: durable ordered log with consumer offsets (replay, multiple consumers).</li>
+      </ul>
+      <h4>Exactly-once?</h4>
+      <div>In practice, design for at-least-once + idempotent consumers.</div>
+    `,
+    diagram: diagramQueue(),
+  },
+  {
+    id: 'sharding',
+    topic: 'Databases',
+    title: 'Sharding strategies + hot partitions',
+    summary: 'How to split data across nodes and avoid hotspots.',
+    answerHtml: `
+      <h4>Sharding options</h4>
+      <ul>
+        <li><b>Range-based</b>: easy range queries, risk of hot shard.</li>
+        <li><b>Hash-based</b>: even distribution, harder range queries.</li>
+        <li><b>Directory-based</b>: lookup table maps key → shard.</li>
+      </ul>
+      <h4>Hot partitions</h4>
+      <div>Common cause: monotonic keys (timestamps) or celebrity users.</div>
+      <h4>Mitigations</h4>
+      <ul>
+        <li>Use hash prefixes / consistent hashing</li>
+        <li>Separate hot entities into dedicated partitions</li>
+        <li>Cache aggressively for hot reads</li>
+      </ul>
+    `,
+    diagram: diagramSharding(),
+  },
+  {
+    id: 'cdn',
+    topic: 'Networking',
+    title: 'CDN basics: caching at the edge + invalidation',
+    summary: 'Huge latency win for static + cacheable content.',
+    answerHtml: `
+      <h4>What a CDN helps with</h4>
+      <ul>
+        <li>Serve static assets close to users (images, JS, CSS)</li>
+        <li>Reduce origin load</li>
+        <li>Can terminate TLS and do basic protection (WAF)</li>
+      </ul>
+      <h4>Invalidation strategies</h4>
+      <ul>
+        <li>Cache-busting URLs (best): <code>app.3f2a9.js</code></li>
+        <li>TTL-based caching</li>
+        <li>Explicit purge/invalidate (costly at scale)</li>
+      </ul>
+    `,
+    diagram: diagramCDN(),
+  },
+];
 
 // ── INIT ──────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
+  setView(activeView);
   if (token) {
     await bootstrap();
   } else {
@@ -36,6 +299,10 @@ async function bootstrap() {
     buildSidebar();
     filterAndRender();
     updateAllStats();
+    // Ensure hash navigation works after login
+    if (window.location.hash && window.location.hash.startsWith('#topic-')) {
+      setTimeout(handleHashNavigation, 200);
+    }
   } catch (err) {
     token = null;
     localStorage.removeItem('dsa_token');
@@ -114,14 +381,291 @@ async function handleRegister(e) {
   }
 }
 
+
 function logout() {
-  if (!confirm('Log out?')) return;
-  token = null;
-  localStorage.removeItem('dsa_token');
-  currentUser = null;
-  topics = []; progressMap = {};
-  document.getElementById('content').innerHTML = '';
-  showAuth();
+  showConfirmPopup('Log out?', () => {
+    token = null;
+    localStorage.removeItem('dsa_token');
+    currentUser = null;
+    topics = []; progressMap = {};
+    document.getElementById('content').innerHTML = '';
+    showAuth();
+  });
+}
+
+function setView(view) {
+  activeView = view === 'system' ? 'system' : 'dsa';
+  localStorage.setItem('dsa_active_view', activeView);
+
+  const btnDsa = document.getElementById('viewBtnDsa');
+  const btnSys = document.getElementById('viewBtnSystem');
+  if (btnDsa) btnDsa.classList.toggle('active', activeView === 'dsa');
+  if (btnSys) btnSys.classList.toggle('active', activeView === 'system');
+
+  const hero = document.getElementById('heroSection');
+  const content = document.getElementById('content');
+  const sys = document.getElementById('systemDesignSection');
+
+  if (hero) hero.style.display = activeView === 'dsa' ? '' : 'none';
+  if (content) content.style.display = activeView === 'dsa' ? '' : 'none';
+  if (sys) sys.style.display = activeView === 'system' ? '' : 'none';
+
+  const searchWrap = document.querySelector('.topbar-filters');
+  if (searchWrap) searchWrap.style.display = activeView === 'dsa' ? '' : 'none';
+
+  const pills = document.querySelectorAll('.topbar-right .pill-btn');
+  pills.forEach(p => { p.style.display = activeView === 'dsa' ? '' : 'none'; });
+
+  if (activeView === 'system') {
+    ensureSystemDesignTopics();
+    renderSystemDesign();
+  }
+}
+
+function ensureSystemDesignTopics() {
+  const el = document.getElementById('sysTopics');
+  if (!el) return;
+  if (el.dataset.ready === '1') return;
+
+  const topics = Array.from(new Set(SYSTEM_DESIGN_KB.map(x => x.topic))).sort();
+  const all = ['All', ...topics];
+  el.innerHTML = '';
+
+  all.forEach(t => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'sys-topic-chip';
+    chip.textContent = t;
+    chip.onclick = () => {
+      sysTopicFilter = t;
+      el.querySelectorAll('.sys-topic-chip').forEach(c => c.classList.toggle('active', c.textContent === t));
+      renderSystemDesign();
+    };
+    if (t === sysTopicFilter) chip.classList.add('active');
+    el.appendChild(chip);
+  });
+
+  el.dataset.ready = '1';
+}
+
+function renderSystemDesign() {
+  const acc = document.getElementById('sysAccordion');
+  if (!acc) return;
+
+  const q = (document.getElementById('sysSearch')?.value || '').toLowerCase().trim();
+
+  const filtered = SYSTEM_DESIGN_KB.filter(item => {
+    if (sysTopicFilter !== 'All' && item.topic !== sysTopicFilter) return false;
+    if (!q) return true;
+    const hay = `${item.topic} ${item.title} ${item.summary} ${item.answerHtml}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  acc.innerHTML = '';
+  if (!filtered.length) {
+    acc.innerHTML = `<div class="sys-item"><div class="sys-item-header"><div class="sys-item-title"><strong>No matches</strong><div class="sys-item-meta">Try another keyword or switch topics.</div></div><div class="sys-chevron">▼</div></div></div>`;
+    return;
+  }
+
+  filtered.forEach(item => {
+    const wrap = document.createElement('div');
+    wrap.className = 'sys-item';
+    wrap.id = `sys_${item.id}`;
+    wrap.innerHTML = `
+      <div class="sys-item-header">
+        <div class="sys-item-title">
+          <strong>${escapeHtml(item.title)}</strong>
+          <div class="sys-item-meta">${escapeHtml(item.topic)} · ${escapeHtml(item.summary || '')}</div>
+        </div>
+        <div class="sys-chevron">▼</div>
+      </div>
+      <div class="sys-item-body">
+        <div class="sys-answer">${item.answerHtml || ''}</div>
+        ${item.diagram ? `<div class="sys-diagram">${item.diagram}</div>` : ''}
+      </div>
+    `;
+
+    const header = wrap.querySelector('.sys-item-header');
+    header.addEventListener('click', () => {
+      wrap.classList.toggle('open');
+    });
+    acc.appendChild(wrap);
+  });
+}
+
+window.renderSystemDesign = renderSystemDesign;
+window.setView = setView;
+
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function svgBox(label, x, y, w, h, accent = 'var(--green)') {
+  return `
+    <g>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.12)" />
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="12" fill="none" stroke="${accent}" opacity="0.45" />
+      <text x="${x + w / 2}" y="${y + h / 2 + 5}" text-anchor="middle" fill="rgba(255,255,255,0.88)" font-size="14" font-family="Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial">${label}</text>
+    </g>
+  `;
+}
+
+function svgArrow(x1, y1, x2, y2) {
+  return `
+    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,255,255,0.45)" stroke-width="2" marker-end="url(#arrow)" />
+  `;
+}
+
+function svgWrap(inner, width = 980, height = 220) {
+  return `
+    <svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="system design diagram">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(255,255,255,0.55)" />
+        </marker>
+      </defs>
+      <rect x="0" y="0" width="${width}" height="${height}" fill="rgba(0,0,0,0.0)" />
+      ${inner}
+    </svg>
+  `;
+}
+
+function diagramBasicWebService() {
+  const inner = `
+    ${svgBox('Client', 50, 75, 130, 70, 'var(--blue)')}
+    ${svgBox('API', 250, 75, 150, 70, 'var(--green)')}
+    ${svgBox('DB', 470, 40, 150, 70, 'var(--red)')}
+    ${svgBox('Cache', 470, 120, 150, 70, 'var(--green)')}
+    ${svgArrow(180, 110, 250, 110)}
+    ${svgArrow(400, 110, 470, 75)}
+    ${svgArrow(400, 110, 470, 155)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramReplication() {
+  const inner = `
+    ${svgBox('Primary', 260, 55, 160, 70, 'var(--green)')}
+    ${svgBox('Replica 1', 500, 25, 160, 70, 'var(--blue)')}
+    ${svgBox('Replica 2', 500, 115, 160, 70, 'var(--blue)')}
+    ${svgArrow(420, 90, 500, 60)}
+    ${svgArrow(420, 90, 500, 150)}
+    <text x="340" y="44" text-anchor="middle" fill="rgba(226,232,240,0.78)" font-size="12" font-family="Inter, system-ui">replication</text>
+  `;
+  return svgWrap(inner, 980, 210);
+}
+
+function diagramLB() {
+  const inner = `
+    ${svgBox('Client', 60, 75, 140, 70, 'var(--blue)')}
+    ${svgBox('Load Balancer', 260, 75, 190, 70, 'var(--green)')}
+    ${svgBox('Service A', 540, 30, 160, 70, 'var(--green)')}
+    ${svgBox('Service B', 540, 120, 160, 70, 'var(--green)')}
+    ${svgBox('Service C', 740, 75, 160, 70, 'var(--green)')}
+    ${svgArrow(200, 110, 260, 110)}
+    ${svgArrow(450, 110, 540, 65)}
+    ${svgArrow(450, 110, 540, 155)}
+    ${svgArrow(700, 65, 740, 110)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramCacheAside() {
+  const inner = `
+    ${svgBox('App', 120, 75, 160, 70, 'var(--green)')}
+    ${svgBox('Cache', 360, 40, 170, 70, 'var(--blue)')}
+    ${svgBox('DB', 360, 120, 170, 70, 'var(--red)')}
+    ${svgArrow(280, 110, 360, 75)}
+    ${svgArrow(280, 110, 360, 155)}
+    <text x="445" y="30" text-anchor="middle" fill="rgba(226,232,240,0.78)" font-size="12" font-family="Inter, system-ui">read → cache miss → db → fill</text>
+  `;
+  return svgWrap(inner);
+}
+
+function diagramRateLimiter() {
+  const inner = `
+    ${svgBox('Clients', 60, 75, 150, 70, 'var(--blue)')}
+    ${svgBox('API Gateway', 260, 75, 190, 70, 'var(--green)')}
+    ${svgBox('Rate Limiter', 500, 75, 190, 70, 'var(--red)')}
+    ${svgBox('Services', 740, 75, 170, 70, 'var(--green)')}
+    ${svgArrow(210, 110, 260, 110)}
+    ${svgArrow(450, 110, 500, 110)}
+    ${svgArrow(690, 110, 740, 110)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramUrlShortener() {
+  const inner = `
+    ${svgBox('Client', 60, 75, 140, 70, 'var(--blue)')}
+    ${svgBox('Shorten API', 240, 75, 170, 70, 'var(--green)')}
+    ${svgBox('ID / Base62', 450, 35, 170, 70, 'var(--blue)')}
+    ${svgBox('URL Store', 450, 125, 170, 70, 'var(--red)')}
+    ${svgBox('Redirect', 680, 75, 170, 70, 'var(--green)')}
+    ${svgArrow(200, 110, 240, 110)}
+    ${svgArrow(410, 110, 450, 70)}
+    ${svgArrow(410, 110, 450, 160)}
+    ${svgArrow(620, 110, 680, 110)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramFeed() {
+  const inner = `
+    ${svgBox('User', 50, 75, 140, 70, 'var(--blue)')}
+    ${svgBox('Feed Service', 230, 75, 180, 70, 'var(--green)')}
+    ${svgBox('Posts Store', 450, 35, 180, 70, 'var(--red)')}
+    ${svgBox('Timeline Store', 450, 125, 180, 70, 'var(--blue)')}
+    ${svgBox('Cache', 690, 75, 180, 70, 'var(--green)')}
+    ${svgArrow(190, 110, 230, 110)}
+    ${svgArrow(410, 110, 450, 70)}
+    ${svgArrow(410, 110, 450, 160)}
+    ${svgArrow(630, 110, 690, 110)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramQueue() {
+  const inner = `
+    ${svgBox('Service A', 90, 75, 170, 70, 'var(--green)')}
+    ${svgBox('Queue', 310, 75, 160, 70, 'var(--blue)')}
+    ${svgBox('Workers', 520, 75, 170, 70, 'var(--green)')}
+    ${svgBox('DB', 740, 75, 150, 70, 'var(--red)')}
+    ${svgArrow(260, 110, 310, 110)}
+    ${svgArrow(470, 110, 520, 110)}
+    ${svgArrow(690, 110, 740, 110)}
+  `;
+  return svgWrap(inner);
+}
+
+function diagramSharding() {
+  const inner = `
+    ${svgBox('Router', 120, 75, 160, 70, 'var(--green)')}
+    ${svgBox('Shard 1', 340, 25, 160, 70, 'var(--blue)')}
+    ${svgBox('Shard 2', 340, 115, 160, 70, 'var(--blue)')}
+    ${svgBox('Shard 3', 540, 75, 160, 70, 'var(--blue)')}
+    ${svgArrow(280, 110, 340, 60)}
+    ${svgArrow(280, 110, 340, 150)}
+    ${svgArrow(500, 60, 540, 110)}
+  `;
+  return svgWrap(inner, 980, 210);
+}
+
+function diagramCDN() {
+  const inner = `
+    ${svgBox('User', 60, 75, 150, 70, 'var(--blue)')}
+    ${svgBox('CDN (Edge)', 260, 75, 180, 70, 'var(--green)')}
+    ${svgBox('Origin', 500, 75, 180, 70, 'var(--red)')}
+    ${svgArrow(210, 110, 260, 110)}
+    ${svgArrow(440, 110, 500, 110)}
+    <text x="350" y="55" text-anchor="middle" fill="rgba(226,232,240,0.78)" font-size="12" font-family="Inter, system-ui">cache hits</text>
+  `;
+  return svgWrap(inner);
 }
 
 // ── API HELPERS ───────────────────────────────────────────
@@ -157,7 +701,16 @@ async function verifyToken() {
   document.getElementById('userName').textContent = currentUser.username;
   document.getElementById('userAvatar').textContent = currentUser.username[0].toUpperCase();
   const streak = currentUser.streak?.current || 0;
-  document.getElementById('userStreak').textContent = `🔥 ${streak} day${streak !== 1 ? 's' : ''} streak`;
+  const longest = currentUser.streak?.longest || 0;
+  const lastSolved = currentUser.streak?.lastSolvedDate ? new Date(currentUser.streak.lastSolvedDate) : null;
+  let streakText = `🔥 <b>${streak}</b> day${streak !== 1 ? 's' : ''} streak`;
+  if (longest > 0) streakText += ` <span style=\"color:var(--blue);font-size:12px;\">(Longest: ${longest})</span>`;
+  if (lastSolved) {
+    const dateStr = lastSolved.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    streakText += `<br><span style=\"color:var(--text-secondary);font-size:11px;\">Last solved: ${dateStr}</span>`;
+  }
+  document.getElementById('userStreak').innerHTML = streakText;
+  renderStreakHeatmap();
 }
 
 
@@ -199,11 +752,58 @@ async function loadProgress() {
   try {
     const data = await apiFetch('/progress');
     progressMap = data.progressMap || {};
+    renderStreakHeatmap();
   } catch (err) {
     showPopup('Failed to load progress. Please log in again.');
   } finally {
     hideSpinner();
   }
+}
+
+// ── STREAK HEATMAP RENDER ──
+function renderStreakHeatmap() {
+  const container = document.getElementById('streakHeatmap');
+  if (!container) return;
+  // Build a map: date (YYYY-MM-DD) -> count
+  const solvedDates = {};
+  Object.values(progressMap).forEach(p => {
+    if (p.solvedAt) {
+      const d = new Date(p.solvedAt);
+      const key = d.toISOString().slice(0, 10);
+      solvedDates[key] = (solvedDates[key] || 0) + 1;
+    }
+  });
+  // Last 6 months (approx 26 weeks)
+  const today = new Date();
+  const days = 7 * 26;
+  const weeks = 53;
+  let start = new Date(today);
+  start.setDate(today.getDate() - (weeks * 7 - (today.getDay() + 1)));
+  // Build grid: columns=weeks, rows=7 (Sun-Sat)
+  let grid = [];
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + w * 7 + d);
+      const key = date.toISOString().slice(0, 10);
+      grid.push({ key, count: solvedDates[key] || 0, isToday: key === today.toISOString().slice(0, 10) });
+    }
+  }
+  // Render
+  container.innerHTML = '';
+  grid.forEach(cell => {
+    const dot = document.createElement('div');
+    dot.className = 'streak-dot';
+    let level = 0;
+    if (cell.count >= 4) level = 4;
+    else if (cell.count === 3) level = 3;
+    else if (cell.count === 2) level = 2;
+    else if (cell.count === 1) level = 1;
+    dot.classList.add('level-' + level);
+    if (cell.isToday) dot.classList.add('today');
+    dot.title = `${cell.key}: ${cell.count ? cell.count + ' solved' : 'No activity'}`;
+    container.appendChild(dot);
+  });
 }
 
 // ── TOGGLE SOLVED ─────────────────────────────────────────
@@ -550,17 +1150,41 @@ function closeModal() {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 // ── RESET ──────────────────────────────────────────────────
+
 async function resetAll() {
-  if (!confirm('Reset ALL your progress? This cannot be undone.')) return;
-  try {
-    await apiFetch('/progress/reset', { method: 'DELETE' });
-    progressMap = {};
-    updateAllStats();
-    filterAndRender();
-    showToast('🔄 All progress reset', '');
-  } catch (err) {
-    showToast('Error resetting progress', 'error');
-  }
+  showConfirmPopup('Reset ALL your progress? This cannot be undone.', async () => {
+    try {
+      await apiFetch('/progress/reset', { method: 'DELETE' });
+      progressMap = {};
+      updateAllStats();
+      filterAndRender();
+      showToast('🔄 All progress reset', '');
+    } catch (err) {
+      showToast('Error resetting progress', 'error');
+    }
+  });
+}
+// ── CUSTOM CONFIRM POPUP ──
+function showConfirmPopup(message, onConfirm) {
+  const popup = document.getElementById('customPopup');
+  const content = document.getElementById('popupContent');
+  content.innerHTML = message;
+  // Remove old buttons if any
+  let btns = popup.querySelectorAll('.popup-btn');
+  btns.forEach(b => b.remove());
+  // Add confirm/cancel buttons
+  const okBtn = document.createElement('button');
+  okBtn.textContent = 'OK';
+  okBtn.className = 'popup-btn popup-close';
+  okBtn.onclick = () => { popup.style.display = 'none'; onConfirm(); };
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.className = 'popup-btn';
+  cancelBtn.onclick = () => { popup.style.display = 'none'; };
+  content.appendChild(document.createElement('br'));
+  content.appendChild(okBtn);
+  content.appendChild(cancelBtn);
+  popup.style.display = 'block';
 }
 
 // ── TOAST ──────────────────────────────────────────────────

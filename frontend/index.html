@@ -13,9 +13,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DSA Master Tracker 2025</title>
+  <title>AlgoStreaks: DSA Mastery Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -126,14 +126,19 @@
       </select>
     </div>
     <div class="topbar-right">
+      <div class="view-toggle" id="viewToggle">
+        <button class="view-btn active" id="viewBtnDsa" onclick="setView('dsa')">DSA Tracker</button>
+        <button class="view-btn" id="viewBtnSystem" onclick="setView('system')">System Design</button>
+      </div>
       <button class="pill-btn" onclick="expandAll()">Expand All</button>
       <button class="pill-btn" onclick="collapseAll()">Collapse All</button>
     </div>
   </header>
 
+
   <section class="hero" id="heroSection">
     <div class="hero-content">
-      <h1 class="hero-title">DSA <span class="hero-accent">Master</span> Tracker</h1>
+      <h1 class="hero-title">Algo<span class="hero-accent">Streaks</span>: DSA Mastery Tracker</h1>
       <p class="hero-sub">300+ curated questions · Striver · Love Babbar · NeetCode · FAANG-ready</p>
       <div class="hero-badges">
         <span class="hbadge amazon">Amazon</span>
@@ -153,6 +158,11 @@
       <div class="hstat-div"></div>
       <div class="hstat"><div class="hstat-n" id="hTopics">13</div><div class="hstat-l">Topics</div></div>
     </div>
+    <!-- Streak Heatmap -->
+    <div class="streak-heatmap-wrap">
+      <div class="streak-heatmap-label">Streak Activity (last 6 months)</div>
+      <div class="streak-heatmap" id="streakHeatmap"></div>
+    </div>
   </section>
 
   <div class="loading-bar" id="loadingBar">
@@ -171,21 +181,18 @@
   <!-- ── SYSTEM DESIGN SECTION ── -->
   <section class="future-section" id="systemDesignSection">
     <h2>🛠️ System Design</h2>
-    <p class="future-desc">Explore key system design questions and resources to help you master high-level architecture interviews.</p>
-    <ul class="sysdesign-questions">
-      <li>Design a URL Shortener (e.g., bit.ly)</li>
-      <li>Design Twitter (timeline, feed, scale)</li>
-      <li>Design a scalable chat system</li>
-      <li>Design YouTube (video upload, streaming)</li>
-      <li>Design a distributed cache (e.g., Redis)</li>
-    </ul>
-    <div class="sysdesign-resources">
-      <h3>Resources</h3>
-      <ul>
-        <li><a href="https://github.com/donnemartin/system-design-primer" target="_blank">System Design Primer (GitHub)</a></li>
-        <li><a href="https://www.educative.io/courses/grokking-the-system-design-interview" target="_blank">Grokking the System Design Interview</a></li>
-        <li><a href="https://leetcode.com/discuss/career/229177/System-Design-Interviews-A-step-by-step-approach" target="_blank">LeetCode System Design Guide</a></li>
-      </ul>
+    <p class="future-desc">Search topics, expand cards, and study with diagrams + interview-ready checklists.</p>
+
+    <div class="sys-kb">
+      <div class="sys-kb-controls">
+        <div class="sys-search">
+          <span class="sys-search-icon">🔎</span>
+          <input id="sysSearch" type="text" placeholder="Search: cache, sharding, rate limiter, URL shortener..." oninput="renderSystemDesign()" />
+        </div>
+        <div class="sys-topics" id="sysTopics"></div>
+      </div>
+
+      <div class="sys-accordion" id="sysAccordion"></div>
     </div>
   </section>
 
