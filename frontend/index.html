@@ -79,6 +79,27 @@
     </div>
     <div class="overall-label">Overall Progress</div>
     <div class="overall-pct" id="overallPct">0% Complete</div>
+
+    <div class="streak-ring-card">
+      <div class="streak-ring">
+        <svg viewBox="0 0 80 80" class="circle-svg">
+          <defs>
+            <linearGradient id="streakGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="var(--green)" />
+              <stop offset="50%" stop-color="var(--cyan)" />
+              <stop offset="100%" stop-color="var(--blue)" />
+            </linearGradient>
+          </defs>
+          <circle cx="40" cy="40" r="34" class="circle-bg"/>
+          <circle cx="40" cy="40" r="34" class="circle-fill streak-fill" id="streakRing"/>
+        </svg>
+        <div class="circle-text">
+          <span id="streakRingNum">0</span>
+          <span class="circle-sub"><span id="streakRingLabel">days</span></span>
+        </div>
+      </div>
+      <div class="overall-label">Current Streak</div>
+    </div>
   </div>
 
   <div class="mini-stats">

@@ -704,15 +704,32 @@ async function verifyToken() {
   const longest = currentUser.streak?.longest || 0;
   const lastSolved = currentUser.streak?.lastSolvedDate ? new Date(currentUser.streak.lastSolvedDate) : null;
   let streakText = `🔥 <b>${streak}</b> day${streak !== 1 ? 's' : ''} streak`;
-  if (longest > 0) streakText += ` <span style=\"color:var(--blue);font-size:12px;\">(Longest: ${longest})</span>`;
+  if (longest > 0) streakText += ` <span style="color:var(--blue);font-size:12px;">(Longest: ${longest})</span>`;
   if (lastSolved) {
     const dateStr = lastSolved.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-    streakText += `<br><span style=\"color:var(--text-secondary);font-size:11px;\">Last solved: ${dateStr}</span>`;
+    streakText += `<br><span style="color:var(--text-secondary);font-size:11px;">Last solved: ${dateStr}</span>`;
   }
   document.getElementById('userStreak').innerHTML = streakText;
+  updateStreakRing(streak);
   renderStreakHeatmap();
 }
 
+function updateStreakRing(streakDays) {
+  const ring = document.getElementById('streakRing');
+  const num = document.getElementById('streakRingNum');
+  const label = document.getElementById('streakRingLabel');
+  if (!ring || !num || !label) return;
+
+  const cap = 30;
+  const v = Math.max(0, Number(streakDays) || 0);
+  const pct = Math.min(1, v / cap);
+  const circumference = 213.6;
+  ring.style.strokeDasharray = `${circumference}`;
+  ring.style.strokeDashoffset = `${circumference - pct * circumference}`;
+
+  num.textContent = String(v);
+  label.textContent = v === 1 ? 'day' : 'days';
+}
 
 // ── MODERN SPINNER LOADER ──
 function showSpinner() {
@@ -773,20 +790,22 @@ function renderStreakHeatmap() {
       solvedDates[key] = (solvedDates[key] || 0) + 1;
     }
   });
-  // Last 6 months (approx 26 weeks)
+  // GitHub-style: last 26 weeks, aligned to week start (Sun)
   const today = new Date();
-  const days = 7 * 26;
-  const weeks = 53;
-  let start = new Date(today);
-  start.setDate(today.getDate() - (weeks * 7 - (today.getDay() + 1)));
-  // Build grid: columns=weeks, rows=7 (Sun-Sat)
-  let grid = [];
+  const todayKey = today.toISOString().slice(0, 10);
+  const weeks = 26;
+  const start = new Date(today);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (weeks * 7 - 1));
+  start.setDate(start.getDate() - start.getDay());
+
+  const grid = [];
   for (let w = 0; w < weeks; w++) {
     for (let d = 0; d < 7; d++) {
       const date = new Date(start);
       date.setDate(start.getDate() + w * 7 + d);
       const key = date.toISOString().slice(0, 10);
-      grid.push({ key, count: solvedDates[key] || 0, isToday: key === today.toISOString().slice(0, 10) });
+      grid.push({ key, count: solvedDates[key] || 0, isToday: key === todayKey });
     }
   }
   // Render
@@ -1012,25 +1031,25 @@ function filterAndRender() {
       tr.dataset.topicId = t._id;
       tr.className = isSolved ? 'solved' : '';
       tr.innerHTML = `
-        <td class="col-check">
+        <td class="col-check" data-label="Solved">
           <input type="checkbox" class="q-check" ${isSolved ? 'checked' : ''}
             onchange="toggleSolved('${q._id}')" />
         </td>
-        <td class="col-num">
+        <td class="col-num" data-label="#">
           <div class="q-num" data-idx="${i+1}">${isSolved ? '✓' : i+1}</div>
         </td>
-        <td class="col-name q-name">${q.title}</td>
-        <td class="col-diff">
+        <td class="col-name q-name" data-label="Problem">${q.title}</td>
+        <td class="col-diff" data-label="Difficulty">
           <span class="badge badge-${q.difficulty.toLowerCase()}">${q.difficulty}</span>
         </td>
-        <td class="col-pat">${q.pattern || ''}</td>
-        <td class="col-co">${(q.companies||[]).join(' · ')}</td>
-        <td class="col-lc">
+        <td class="col-pat" data-label="Pattern">${q.pattern || ''}</td>
+        <td class="col-co" data-label="Companies">${(q.companies||[]).join(' · ')}</td>
+        <td class="col-lc" data-label="Link">
           <a href="${q.lcLink}" target="_blank" class="lc-link${isGFG ? ' gfg-link' : ''}" onclick="event.stopPropagation()">
             ${q.lcNumber} ↗
           </a>
         </td>
-        <td class="col-info">
+        <td class="col-info" data-label="Info">
           <button class="info-btn" onclick="openModal('${t._id}','${q._id}')" title="View hints">?</button>
         </td>
       `;
