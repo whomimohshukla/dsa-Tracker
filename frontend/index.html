@@ -1,69 +1,91 @@
-<!-- ── SPINNER OVERLAY ─────────────────────────────────────────────── -->
-<div class="spinner-overlay" id="spinnerOverlay" style="display:none">
-  <div class="modern-spinner"></div>
-</div>
-
-<!-- ── CUSTOM POPUP ───────────────────────────────────────────────── -->
-<div class="custom-popup" id="customPopup" style="display:none">
-  <div class="popup-content" id="popupContent"></div>
-  <button class="popup-close" onclick="closePopup()">OK</button>
-</div>
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AlgoStreaks: DSA Mastery Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <title>NexusTrack — DSA & AI/ML Mastery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;700;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<!-- ── AUTH SCREEN ──────────────────────────────────────────────── -->
+<!-- TOP LOADING BAR -->
+<div class="loading-bar" id="loadingBar">
+  <div class="loading-bar-fill" id="loadingBarFill"></div>
+</div>
+
+<!-- FULL-PAGE SPINNER OVERLAY -->
+<div class="spinner-overlay" id="spinnerOverlay" style="display:none">
+  <div class="spin-ring"></div>
+  <div class="spinner-overlay-label" id="spinnerLabel">Loading…</div>
+</div>
+
+<!-- POPUP -->
+<div class="custom-popup" id="customPopup" style="display:none">
+  <div class="popup-card">
+    <div class="popup-icon" id="popupIcon">⚠️</div>
+    <div class="popup-title" id="popupTitle"></div>
+    <div class="popup-message" id="popupContent"></div>
+    <div class="popup-actions" id="popupActions"></div>
+  </div>
+</div>
+
+<!-- AUTH OVERLAY -->
 <div class="auth-overlay" id="authOverlay">
   <div class="auth-card">
-    <div class="auth-logo">⚡ DSA<span style="color:var(--green)">Track</span></div>
-    <p class="auth-subtitle">Your personal DSA interview prep dashboard</p>
-
+    <div class="auth-logo">
+      <span class="auth-logo-icon">⬡</span>
+      <span>Nexus<span class="auth-logo-accent">Track</span></span>
+    </div>
+    <p class="auth-subtitle">DSA + AI/ML Mastery — All in one place</p>
     <div class="auth-tabs">
-      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Login</button>
+      <button class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Sign In</button>
       <button class="auth-tab" id="tabRegister" onclick="switchTab('register')">Register</button>
     </div>
-
     <div id="authError" class="auth-error" style="display:none"></div>
-
     <form id="loginForm" class="auth-form" onsubmit="handleLogin(event)">
-      <input type="email" id="loginEmail" placeholder="Email" required />
-      <input type="password" id="loginPassword" placeholder="Password" required />
-      <button type="submit" class="auth-submit" id="loginBtn">Login</button>
+      <input type="email" id="loginEmail" placeholder="Email address" required autocomplete="email" />
+      <input type="password" id="loginPassword" placeholder="Password" required autocomplete="current-password" />
+      <button type="submit" class="auth-submit" id="loginBtn">Sign In</button>
     </form>
-
     <form id="registerForm" class="auth-form" style="display:none" onsubmit="handleRegister(event)">
-      <input type="text" id="regUsername" placeholder="Username (3-30 chars)" required minlength="3" />
-      <input type="email" id="regEmail" placeholder="Email" required />
-      <input type="password" id="regPassword" placeholder="Password (min 6 chars)" required minlength="6" />
+      <input type="text" id="regUsername" placeholder="Username (3–30 chars)" required minlength="3" autocomplete="username" />
+      <input type="email" id="regEmail" placeholder="Email address" required autocomplete="email" />
+      <input type="password" id="regPassword" placeholder="Password (min 6 chars)" required minlength="6" autocomplete="new-password" />
       <button type="submit" class="auth-submit" id="registerBtn">Create Account</button>
     </form>
-
     <p class="auth-demo">Demo: demo@dsa.com / demo123</p>
   </div>
 </div>
 
-<!-- ── SIDEBAR ──────────────────────────────────────────────────── -->
+<!-- SIDEBAR BACKDROP (mobile tap-to-close) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">
-    <span class="logo-icon">⚡</span>
-    <span class="logo-text">DSA<span class="logo-accent">Track</span></span>
+    <span class="logo-hex">⬡</span>
+    <span class="logo-text">Nexus<span class="logo-accent">Track</span></span>
+  </div>
+
+  <div class="track-switcher">
+    <button class="track-btn active" id="trackBtnDSA" onclick="switchTrack('dsa')">
+      <span class="track-icon">⚡</span> DSA
+    </button>
+    <button class="track-btn" id="trackBtnAI" onclick="switchTrack('ai')">
+      <span class="track-icon">🧠</span> AI/ML
+    </button>
   </div>
 
   <div class="sidebar-user" id="sidebarUser">
     <div class="user-avatar" id="userAvatar">U</div>
     <div class="user-info">
-      <div class="user-name" id="userName">Loading...</div>
+      <div class="user-name" id="userName">Loading…</div>
       <div class="user-streak" id="userStreak">🔥 0 day streak</div>
     </div>
-    <button class="logout-btn" onclick="logout()" title="Logout">⏻</button>
+    <button class="logout-btn" onclick="logout()" title="Log out">⏻</button>
   </div>
 
   <div class="sidebar-progress-wrap">
@@ -79,157 +101,103 @@
     </div>
     <div class="overall-label">Overall Progress</div>
     <div class="overall-pct" id="overallPct">0% Complete</div>
-
-    <div class="streak-ring-card">
-      <div class="streak-ring">
-        <svg viewBox="0 0 80 80" class="circle-svg">
-          <defs>
-            <linearGradient id="streakGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="var(--green)" />
-              <stop offset="50%" stop-color="var(--cyan)" />
-              <stop offset="100%" stop-color="var(--blue)" />
-            </linearGradient>
-          </defs>
-          <circle cx="40" cy="40" r="34" class="circle-bg"/>
-          <circle cx="40" cy="40" r="34" class="circle-fill streak-fill" id="streakRing"/>
-        </svg>
-        <div class="circle-text">
-          <span id="streakRingNum">0</span>
-          <span class="circle-sub"><span id="streakRingLabel">days</span></span>
-        </div>
-      </div>
-      <div class="overall-label">Current Streak</div>
-    </div>
   </div>
 
   <div class="mini-stats">
-    <div class="mini-stat easy-stat">
-      <span class="mini-val" id="mEasy">0</span>
-      <span class="mini-label">Easy</span>
-    </div>
-    <div class="mini-stat med-stat">
-      <span class="mini-val" id="mMed">0</span>
-      <span class="mini-label">Medium</span>
-    </div>
-    <div class="mini-stat hard-stat">
-      <span class="mini-val" id="mHard">0</span>
-      <span class="mini-label">Hard</span>
-    </div>
+    <div class="mini-stat easy-stat"><span class="mini-val" id="mEasy">0</span><span class="mini-label">Easy</span></div>
+    <div class="mini-stat med-stat"><span class="mini-val" id="mMed">0</span><span class="mini-label">Med</span></div>
+    <div class="mini-stat hard-stat"><span class="mini-val" id="mHard">0</span><span class="mini-label">Hard</span></div>
   </div>
 
   <nav class="topic-nav" id="topicNav"></nav>
 
   <div class="sidebar-actions">
-    <button class="action-btn danger-btn" onclick="resetAll()">🔄 Reset All Progress</button>
+    <button class="action-btn danger-btn" onclick="resetAll()">↺ Reset Progress</button>
   </div>
 </aside>
 
-<!-- ── MAIN ─────────────────────────────────────────────────────── -->
+<!-- MAIN -->
 <main class="main" id="main">
-
   <header class="topbar">
-    <button class="menu-btn" id="menuBtn" onclick="toggleSidebar()">☰</button>
+    <button class="menu-btn" id="menuBtn" onclick="openSidebar()">☰</button>
     <div class="topbar-filters">
       <div class="search-wrap">
-        <span class="search-icon">🔍</span>
-        <input type="text" id="searchInput" placeholder="Search questions, patterns, companies..." oninput="filterAndRender()" />
+        <span class="search-icon">⌕</span>
+        <input type="text" id="searchInput" placeholder="Search topics, patterns, tools…" oninput="filterAndRender()" />
       </div>
       <select id="diffFilter" onchange="filterAndRender()">
-        <option value="">All Difficulties</option>
+        <option value="">All Levels</option>
         <option value="Easy">🟢 Easy</option>
+        <option value="Beginner">🟢 Beginner</option>
         <option value="Medium">🔵 Medium</option>
+        <option value="Intermediate">🔵 Intermediate</option>
         <option value="Hard">🔴 Hard</option>
+        <option value="Advanced">🔴 Advanced</option>
       </select>
       <select id="statusFilter" onchange="filterAndRender()">
         <option value="">All Status</option>
-        <option value="todo">Not Solved</option>
-        <option value="done">Solved ✓</option>
+        <option value="todo">Not Done</option>
+        <option value="done">Completed ✓</option>
       </select>
     </div>
     <div class="topbar-right">
-      <div class="view-toggle" id="viewToggle">
-        <button class="view-btn active" id="viewBtnDsa" onclick="setView('dsa')">DSA Tracker</button>
-        <button class="view-btn" id="viewBtnSystem" onclick="setView('system')">System Design</button>
-      </div>
       <button class="pill-btn" onclick="expandAll()">Expand All</button>
       <button class="pill-btn" onclick="collapseAll()">Collapse All</button>
     </div>
   </header>
 
-
+  <!-- HERO -->
   <section class="hero" id="heroSection">
-    <div class="hero-content">
-      <h1 class="hero-title">Algo<span class="hero-accent">Streaks</span>: DSA Mastery Tracker</h1>
-      <p class="hero-sub">300+ curated questions · Striver · Love Babbar · NeetCode · FAANG-ready</p>
-      <div class="hero-badges">
-        <span class="hbadge amazon">Amazon</span>
-        <span class="hbadge google">Google</span>
-        <span class="hbadge ms">Microsoft</span>
-        <span class="hbadge flip">Flipkart</span>
-        <span class="hbadge adobe">Adobe</span>
-        <span class="hbadge fb">Facebook</span>
-      </div>
+    <div class="hero-eyebrow" id="heroEyebrow">DSA MASTERY TRACK</div>
+    <h1 class="hero-title" id="heroTitle">Algo<span class="hero-accent">Streaks</span></h1>
+    <p class="hero-sub" id="heroSub">300+ curated questions · FAANG-ready · Hints & Approaches</p>
+    <div class="hero-badges" id="heroBadges">
+      <span class="hbadge amazon">Amazon</span>
+      <span class="hbadge google">Google</span>
+      <span class="hbadge ms">Microsoft</span>
+      <span class="hbadge flip">Flipkart</span>
+      <span class="hbadge adobe">Adobe</span>
+      <span class="hbadge fb">Meta</span>
     </div>
     <div class="hero-stats">
-      <div class="hstat"><div class="hstat-n" id="hTotal">0</div><div class="hstat-l">Questions</div></div>
+      <div class="hstat"><div class="hstat-n" id="hTotal">0</div><div class="hstat-l">Done</div></div>
       <div class="hstat-div"></div>
       <div class="hstat"><div class="hstat-n" id="hDone">0</div><div class="hstat-l">Solved</div></div>
       <div class="hstat-div"></div>
       <div class="hstat"><div class="hstat-n" id="hLeft">0</div><div class="hstat-l">Remaining</div></div>
       <div class="hstat-div"></div>
-      <div class="hstat"><div class="hstat-n" id="hTopics">13</div><div class="hstat-l">Topics</div></div>
+      <div class="hstat"><div class="hstat-n" id="hTopics">0</div><div class="hstat-l">Subjects</div></div>
     </div>
-    <!-- Streak Heatmap -->
     <div class="streak-heatmap-wrap">
-      <div class="streak-heatmap-label">Streak Activity (last 6 months)</div>
+      <div class="streak-heatmap-label">Activity — last 6 months</div>
       <div class="streak-heatmap" id="streakHeatmap"></div>
     </div>
   </section>
 
-  <div class="loading-bar" id="loadingBar">
-    <div class="loading-bar-fill" id="loadingBarFill"></div>
+  <!-- PHASE TABS (AI mode only) -->
+  <div class="phase-indicator" id="phaseIndicator">
+    <div class="phase-tabs" id="phaseTabs"></div>
   </div>
 
-
+  <!-- CONTENT -->
   <section class="content" id="content">
     <div class="initial-loader">
-      <div class="spinner"></div>
-      <p>Loading questions from database...</p>
-    </div>
-  </section>
-
-
-  <!-- ── SYSTEM DESIGN SECTION ── -->
-  <section class="future-section" id="systemDesignSection">
-    <h2>🛠️ System Design</h2>
-    <p class="future-desc">Search topics, expand cards, and study with diagrams + interview-ready checklists.</p>
-
-    <div class="sys-kb">
-      <div class="sys-kb-controls">
-        <div class="sys-search">
-          <span class="sys-search-icon">🔎</span>
-          <input id="sysSearch" type="text" placeholder="Search: cache, sharding, rate limiter, URL shortener..." oninput="renderSystemDesign()" />
-        </div>
-        <div class="sys-topics" id="sysTopics"></div>
+      <div class="spin-dots">
+        <span></span><span></span><span></span>
       </div>
-
-      <div class="sys-accordion" id="sysAccordion"></div>
+      <p>Loading from database…</p>
     </div>
   </section>
-
-  <!-- Add more future sections below as needed -->
-  <!-- <section class="future-section">...</section> -->
-
 </main>
 
-<!-- ── QUESTION MODAL ───────────────────────────────────────────── -->
+<!-- MODAL -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal()"></div>
 <div class="modal" id="modal">
   <button class="modal-close" onclick="closeModal()">✕</button>
   <div class="modal-body" id="modalBody"></div>
 </div>
 
-<!-- ── TOAST ────────────────────────────────────────────────────── -->
+<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>

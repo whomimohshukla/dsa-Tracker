@@ -1,218 +1,141 @@
-# ⚡ DSA Master Tracker — Full Stack
+# ⬡ NexusTrack — DSA + AI/ML Mastery Tracker
 
-**300+ DSA questions · MongoDB · JWT Auth · Progress sync across devices**
+> **Dual-track learning platform**: 300+ DSA questions + Complete AI/ML Engineer Roadmap with YouTube resources per topic.
 
 ---
 
-## 🗂️ Project Structure
+## 🚀 What's New
+
+- **🧠 AI/ML Track** — 7 phases, 80+ topics from Python basics → GenAI agents
+- **📺 YouTube Resources** — CampusX, Krish Naik, Andrej Karpathy, StatQuest per topic
+- **⬡ Track Switcher** — Instantly switch between DSA and AI/ML modes
+- **🎨 New UI** — Space Grotesk + Unbounded typography, dark theme, phase indicators
+- **💡 Rich Modals** — Hints, approach, pro tip, complexity + YouTube links in one place
+
+---
+
+## 📦 Project Structure
 
 ```
-dsa-fullstack/
+nexustrack/
 ├── backend/
-│   ├── server.js          # Express app entry point
-│   ├── seed.js            # Seed 300+ questions to MongoDB
-│   ├── package.json
-│   ├── .env.example       # Copy to .env and fill in values
+│   ├── server.js              # Express app
+│   ├── seed.js                # DSA seed (300+ questions)
+│   ├── seed-ai.js             # AI/ML seed (80+ topics with YouTube)
 │   ├── models/
-│   │   ├── Question.js    # Question schema (title, hint, approach, etc.)
-│   │   └── UserProgress.js # User + Progress schemas
-│   ├── routes/
-│   │   ├── auth.js        # /api/auth/* (register, login, me)
-│   │   ├── questions.js   # /api/questions/* (CRUD + grouped by topic)
-│   │   └── progress.js    # /api/progress/* (toggle, stats, reset)
-│   └── middleware/
-│       └── auth.js        # JWT verification middleware
+│   │   ├── Question.js        # Extended schema (track, phase, tag, youtubeResources)
+│   │   └── UserProgress.js    # User + Progress schemas
+│   └── routes/
+│       ├── auth.js            # JWT auth
+│       ├── questions.js       # Questions (supports ?track=dsa|ai)
+│       └── progress.js        # Progress toggle + stats
 └── frontend/
-    ├── index.html         # Main HTML
-    ├── style.css          # Dark theme styles
-    └── app.js             # API-integrated JavaScript
+    ├── index.html             # Track switcher, phase tabs, AI hero
+    ├── style.css              # Full dark theme (Space Grotesk + Unbounded)
+    └── app.js                 # Dual-track state, phase filter, YouTube modal
 ```
 
 ---
 
-## 🚀 Quick Start
+## ⚙️ Quick Start
 
 ### 1. Prerequisites
+- Node.js v18+
+- MongoDB (local or Atlas)
 
-- **Node.js** v18+
-- **MongoDB** (local or [Atlas](https://www.mongodb.com/atlas) cloud)
-
-### 2. Install Dependencies
-
+### 2. Install
 ```bash
 cd backend
 npm install
 ```
 
-### 3. Configure Environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
-
+### 3. Configure `.env`
 ```env
-# Local MongoDB
 MONGODB_URI=mongodb://localhost:27017/dsa_tracker
-
-# OR MongoDB Atlas (replace with your connection string)
-# MONGODB_URI=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/dsa_tracker
-
 PORT=5000
-JWT_SECRET=your_random_secret_key_here_make_it_long
+JWT_SECRET=your_long_random_secret
 JWT_EXPIRES_IN=30d
 FRONTEND_URL=http://localhost:5000
 ```
 
-### 4. Seed the Database (300+ Questions)
-
+### 4. Seed the database
 ```bash
+# Seed DSA questions (300+)
 npm run seed
+
+# Seed AI/ML roadmap (80+ topics with YouTube resources)
+npm run seed:ai
+
+# Or seed both at once
+npm run seed:all
 ```
 
-Output:
-```
-✅  MongoDB connected
-🗑️   Cleared existing questions
-✅  Inserted 300 questions
-   arrays          → 25 questions (E:6 M:14 H:5)
-   strings         → 20 questions (E:6 M:11 H:3)
-   linkedlists     → 18 questions ...
-   ...
-📊  Total: 300 questions across 13 topics
-```
-
-### 5. Start the Server
-
+### 5. Start
 ```bash
-npm start           # Production
-npm run dev         # Development (with nodemon auto-reload)
+npm start        # production
+npm run dev      # development (nodemon)
 ```
 
-Open **http://localhost:5000** 🎉
+Open http://localhost:5000 🎉
 
 ---
 
-## 📡 API Endpoints
+## 🧠 AI/ML Roadmap — 7 Phases
 
-### Auth
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Create account |
-| POST | `/api/auth/login` | Login, get JWT token |
-| GET  | `/api/auth/me` | Get current user (auth required) |
+| Phase | Topics | Tag |
+|-------|--------|-----|
+| Phase 1: Foundations | Python, NumPy, Pandas, Math, EDA, SQL | `core` |
+| Phase 2: Core ML | Regression, Trees, SVM, XGBoost, KNN, Clustering, PCA | `ml` |
+| Phase 3: Deep Learning | Neural Nets, Backprop, PyTorch, TF, CNNs, Object Detection | `dl` |
+| Phase 4: NLP & Transformers | BERT, GPT, Attention, HuggingFace, LoRA/QLoRA | `dl` |
+| Phase 5: Generative AI | LLMs, RAG, Agents, LangChain, Diffusion, Multimodal | `genai` |
+| Phase 6: MLOps | FastAPI, Docker, MLflow, LLMOps, AWS/GCP | `deploy` |
+| Phase 7: Projects | 6 portfolio projects with guides | `project` |
+
+Each topic includes:
+- 💡 Key insight / hint
+- 🎯 Practical approach to study it
+- ⭐ Pro tip
+- 📺 2–3 YouTube resources (CampusX, Krish Naik, StatQuest, 3Blue1Brown, Andrej Karpathy…)
+
+---
+
+## 📡 API
 
 ### Questions
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET  | `/api/questions/topics` | All questions grouped by topic |
-| GET  | `/api/questions?difficulty=Easy&topic=arrays` | Filtered list |
-| GET  | `/api/questions/:id` | Single question |
+```
+GET  /api/questions/topics?track=dsa   → DSA topics grouped
+GET  /api/questions/topics?track=ai    → AI/ML topics grouped by phase
+GET  /api/questions?track=ai           → All AI questions
+```
 
-### Progress (all require JWT auth)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET    | `/api/progress` | Your progress map |
-| GET    | `/api/progress/stats` | Detailed stats |
-| POST   | `/api/progress/toggle` | Mark/unmark a question `{ questionId }` |
-| DELETE | `/api/progress/reset` | Reset all your progress |
+### Auth
+```
+POST /api/auth/register
+POST /api/auth/login
+GET  /api/auth/me
+```
+
+### Progress
+```
+GET    /api/progress
+POST   /api/progress/toggle  { questionId }
+DELETE /api/progress/reset
+```
 
 ---
 
-## 🌐 Deploy to Production
+## 🌐 Deploy
 
-### Option A: Railway (Recommended — Free)
-
-1. Push code to GitHub
-2. Go to [railway.app](https://railway.app) → New Project → GitHub repo
-3. Add MongoDB plugin OR set `MONGODB_URI` to Atlas connection string
-4. Set environment variables in Railway dashboard
-5. Deploy! Railway auto-detects Node.js
-
-### Option B: Render
-
+### Railway (Recommended)
 1. Push to GitHub
-2. New Web Service on [render.com](https://render.com)
-3. Build command: `npm install`
-4. Start command: `node server.js`
-5. Add environment variables
-6. Create a free PostgreSQL → use MongoDB Atlas instead
+2. New project → Connect repo
+3. Add MongoDB plugin OR set `MONGODB_URI` to Atlas
+4. After deploy: `railway run npm run seed:all`
 
-### Option C: Heroku
+### Render
+1. New Web Service → your repo
+2. Build: `npm install`  Start: `node server.js`
+3. Add env vars → Deploy
+4. Open shell → `node seed.js && node seed-ai.js`
 
-```bash
-heroku create dsa-tracker-yourname
-heroku config:set MONGODB_URI="mongodb+srv://..."
-heroku config:set JWT_SECRET="your_secret"
-heroku config:set NODE_ENV=production
-git push heroku main
-heroku run npm run seed
-```
-
-### Option D: VPS (DigitalOcean, Linode, etc.)
-
-```bash
-# On server
-git clone your-repo
-cd backend && npm install
-cp .env.example .env   # fill in values
-npm run seed
-pm2 start server.js --name dsa-tracker
-pm2 save && pm2 startup
-```
-
----
-
-## 🗄️ MongoDB Atlas Setup (Free Cloud DB)
-
-1. Go to [mongodb.com/atlas](https://www.mongodb.com/atlas)
-2. Create free cluster (M0 — 512MB, free forever)
-3. Create database user (username + password)
-4. Network Access → Add IP: `0.0.0.0/0` (allow all) or your server IP
-5. Connect → Drivers → Copy connection string
-6. Replace `<password>` in the string and set as `MONGODB_URI`
-
----
-
-## 📊 Topics & Question Count
-
-| Topic | Questions | Easy | Medium | Hard |
-|-------|-----------|------|--------|------|
-| 📊 Arrays | 25 | 6 | 14 | 5 |
-| 🔤 Strings | 20 | 6 | 11 | 3 |
-| 🔗 Linked Lists | 18 | 6 | 10 | 2 |
-| 🔍 Binary Search | 15 | 3 | 9 | 3 |
-| ⚡ Dynamic Programming | 25 | 2 | 18 | 5 |
-| 🕸️ Graphs | 18 | 3 | 11 | 4 |
-| 🌳 Trees & BST | 20 | 6 | 12 | 2 |
-| 📚 Stacks & Queues | 15 | 4 | 9 | 2 |
-| ⛰️ Heaps | 12 | 0 | 9 | 3 |
-| 🔄 Backtracking | 12 | 0 | 9 | 3 |
-| 💡 Greedy | 12 | 4 | 7 | 1 |
-| ⚙️ Bit Manipulation | 10 | 5 | 4 | 1 |
-| 🌲 Trie | 8 | 1 | 5 | 2 |
-| **Total** | **210+** | | | |
-
----
-
-## ✨ Features
-
-- 🔐 **JWT Authentication** — register/login, progress synced per user
-- 🗄️ **MongoDB** — questions and progress stored in database  
-- ✅ **Mark/Unmark** — toggle questions solved with optimistic UI updates
-- 🔍 **Filter** — by difficulty, status (solved/unsolved), or search
-- 💡 **Hints & Approach** — modal with hint, approach, time/space complexity
-- 📊 **Progress Ring** — circular progress indicator in sidebar
-- 🔥 **Streak Tracking** — daily solving streak
-- 📱 **Responsive** — works on mobile
-- ⚡ **Fast** — optimistic updates, no reload needed
-
----
-
-## 🛠️ Tech Stack
-
-- **Backend**: Node.js, Express, Mongoose, JWT, bcrypt
-- **Database**: MongoDB (local or Atlas)
-- **Frontend**: Vanilla JS, HTML, CSS (no frameworks)
-- **Fonts**: JetBrains Mono + Syne (Google Fonts)
