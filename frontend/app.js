@@ -1,178 +1,182 @@
-/* ═══════════════════════════════════════════════════════
-   NEXUSTRACK — app.js
-   DSA + AI/ML Tracker | JWT Auth | MongoDB | YouTube
-═══════════════════════════════════════════════════════ */
-
-window.addEventListener('error', e => showPopup('JS Error: ' + e.message));
-window.addEventListener('unhandledrejection', e => showPopup('Error: ' + (e.reason?.message || e.reason)));
+/* ═══════════════════════════════════════════════════════════
+   NexusTrack v2 — app.js
+   Dual-track: DSA 💻 + AI/ML 🤖
+   Auth · Progress sync · Phase tabs · Topic docs modal
+═══════════════════════════════════════════════════════════ */
 
 const API = window.location.origin + '/api';
 
-// ── STATE ─────────────────────────────────────────────
-let token = localStorage.getItem('dsa_token') || null;
+// ── STATE ──────────────────────────────────────────────────
+let token       = localStorage.getItem('dsa_token') || null;
 let currentUser = null;
-let allTopics = { dsa: [], ai: [] };
+let topics      = [];
 let progressMap = {};
-let expanded = {};
-let currentTrack = localStorage.getItem('nx_track') || 'dsa';
-let currentPhase = 'all';
-let toastTimer = null;
+let expanded    = {};
+let modalQ      = null;
+let toastTimer  = null;
+let currentTrack= localStorage.getItem('nexus_track') || 'dsa';
+let currentPhase= 0; // 0 = all phases
+let allPhases   = [];
 
-// ── INIT ──────────────────────────────────────────────
+// ── INIT ───────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
-  applyTrack(currentTrack, false);
-  if (token) await bootstrap();
-  else showAuth();
-  buildHeatmap();
-  window.addEventListener('hashchange', handleHash);
-  if (window.location.hash?.startsWith('#topic-')) setTimeout(handleHash, 200);
+  applyTrackTheme(currentTrack);
+  if (token) {
+    await bootstrap();
+  } else {
+    showAuth();
+  }
 });
 
 async function bootstrap() {
   try {
     await verifyToken();
     hideAuth();
-    showLoadingBar();
-    showSpinner('Syncing your progress…');
-    await Promise.all([loadTopics('dsa'), loadTopics('ai'), loadProgress()]);
-    hideLoadingBar();
-    hideSpinner();
+    await Promise.all([loadTopics(), loadProgress()]);
     buildSidebar();
+    updateHeroForTrack();
+    renderPhaseTabs();
     filterAndRender();
     updateAllStats();
   } catch (err) {
     token = null;
     localStorage.removeItem('dsa_token');
-    hideSpinner();
-    hideLoadingBar();
     showAuth();
   }
 }
 
-// ── TRACK SWITCHING ────────────────────────────────────
+// ── TRACK SWITCHING ────────────────────────────────────────
 function switchTrack(track) {
   currentTrack = track;
-  currentPhase = 'all';
-  localStorage.setItem('nx_track', track);
-  applyTrack(track, true);
-  buildSidebar();
-  filterAndRender();
-  updateAllStats();
+  currentPhase = 0;
+  localStorage.setItem('nexus_track', track);
+  applyTrackTheme(track);
+  document.getElementById('trackDsa').classList.toggle('active', track === 'dsa');
+  document.getElementById('trackAi').classList.toggle('active', track === 'ai');
+  topics = [];
+  loadTopics().then(() => {
+    buildSidebar();
+    updateHeroForTrack();
+    renderPhaseTabs();
+    filterAndRender();
+    updateAllStats();
+  });
 }
 
-function applyTrack(track, animate) {
+function applyTrackTheme(track) {
   document.body.classList.toggle('ai-mode', track === 'ai');
-  document.getElementById('trackBtnDSA').classList.toggle('active', track === 'dsa');
-  document.getElementById('trackBtnAI').classList.toggle('active', track === 'ai');
-  const pi = document.getElementById('phaseIndicator');
-  pi.classList.toggle('show', track === 'ai');
-
-  const eyebrow = document.getElementById('heroEyebrow');
-  const title = document.getElementById('heroTitle');
-  const sub = document.getElementById('heroSub');
-  const badges = document.getElementById('heroBadges');
-
-  if (track === 'dsa') {
-    eyebrow.textContent = 'DSA MASTERY TRACK';
-    title.innerHTML = 'Algo<span class="hero-accent">Streaks</span>';
-    sub.textContent = '300+ curated questions · FAANG-ready · Hints & Approaches';
-    badges.innerHTML = `
-      <span class="hbadge amazon">Amazon</span><span class="hbadge google">Google</span>
-      <span class="hbadge ms">Microsoft</span><span class="hbadge flip">Flipkart</span>
-      <span class="hbadge adobe">Adobe</span><span class="hbadge fb">Meta</span>`;
-  } else {
-    eyebrow.textContent = 'AI / ML ENGINEER ROADMAP';
-    title.innerHTML = 'Nexus<span class="hero-accent">AI</span>';
-    sub.textContent = 'From Python basics to GenAI · 7 phases · YouTube resources per topic';
-    badges.innerHTML = `
-      <span class="hbadge phase1">Phase 1: Foundations</span>
-      <span class="hbadge phase2">Phase 2: Core ML</span>
-      <span class="hbadge phase3">Phase 3: Deep Learning</span>
-      <span class="hbadge phase4">Phase 4: NLP & Transformers</span>`;
-    if (animate) buildPhaseTabs();
-  }
-  if (animate) buildPhaseTabs();
 }
 
-function buildPhaseTabs() {
-  const topics = allTopics.ai || [];
-  const phases = ['all', ...new Set(topics.map(t => t.phase).filter(Boolean))];
-  const container = document.getElementById('phaseTabs');
-  container.innerHTML = phases.map((p, i) => {
-    const label = p === 'all' ? 'All Phases' : p;
-    return `<button class="phase-tab ${p === currentPhase ? 'active' : ''}" onclick="filterPhase('${p}')">${label}</button>`;
-  }).join('');
+function updateHeroForTrack() {
+  const isDsa = currentTrack === 'dsa';
+  document.getElementById('heroTitle').innerHTML = isDsa
+    ? 'Algo<span class="hero-accent">Streaks</span>'
+    : 'AI/ML <span class="hero-accent">Roadmap</span>';
+  document.getElementById('heroSub').textContent = isDsa
+    ? '300+ curated DSA questions · Striver · NeetCode · FAANG-ready'
+    : '7-phase AI Engineer roadmap · Foundations → GenAI → Deployment';
+  document.getElementById('heroBadges').innerHTML = isDsa
+    ? '<span class="hbadge">Amazon</span><span class="hbadge">Google</span><span class="hbadge">Microsoft</span><span class="hbadge">Meta</span><span class="hbadge">Apple</span><span class="hbadge">Adobe</span>'
+    : '<span class="hbadge">Python</span><span class="hbadge">PyTorch</span><span class="hbadge">LLMs</span><span class="hbadge">RAG</span><span class="hbadge">MLOps</span><span class="hbadge">GenAI</span>';
 }
 
-function filterPhase(phase) {
-  currentPhase = phase;
-  document.querySelectorAll('.phase-tab').forEach(t => t.classList.toggle('active', t.textContent === (phase === 'all' ? 'All Phases' : phase)));
+// Phase tabs (AI mode only)
+function renderPhaseTabs() {
+  const tabBar = document.getElementById('phaseTabs');
+  const filters = document.getElementById('topbarFilters');
+  const isAi = currentTrack === 'ai';
+  tabBar.style.display = isAi ? 'flex' : 'none';
+  filters.style.display = isAi ? 'none' : 'flex';
+  if (!isAi) return;
+
+  // Gather unique phases
+  const phaseMap = {};
+  topics.forEach(t => {
+    if (t.phaseIndex !== undefined) {
+      phaseMap[t.phaseIndex] = t.phase || `Phase ${t.phaseIndex}`;
+    }
+  });
+  allPhases = Object.entries(phaseMap).sort((a,b) => +a[0] - +b[0]);
+
+  tabBar.innerHTML = `<button class="phase-tab ${currentPhase === 0 ? 'active' : ''}" onclick="setPhase(0)">All Phases</button>`;
+  allPhases.forEach(([idx, name]) => {
+    const short = name.replace('Phase ','').split(':')[0].trim();
+    tabBar.innerHTML += `<button class="phase-tab ${currentPhase === +idx ? 'active' : ''}" onclick="setPhase(${idx})">${short}</button>`;
+  });
+}
+
+function setPhase(idx) {
+  currentPhase = idx;
+  document.querySelectorAll('.phase-tab').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
   filterAndRender();
 }
 
-// ── AUTH ──────────────────────────────────────────────
+// ── AUTH ───────────────────────────────────────────────────
 function showAuth() { document.getElementById('authOverlay').style.display = 'flex'; }
 function hideAuth() { document.getElementById('authOverlay').style.display = 'none'; }
 function switchTab(tab) {
-  document.getElementById('loginForm').style.display = tab === 'login' ? 'flex' : 'none';
+  document.getElementById('loginForm').style.display   = tab === 'login'    ? 'flex' : 'none';
   document.getElementById('registerForm').style.display = tab === 'register' ? 'flex' : 'none';
   document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
   document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
   clearAuthError();
 }
 function showAuthError(msg) { const el = document.getElementById('authError'); el.textContent = msg; el.style.display = 'block'; }
-function clearAuthError() { const el = document.getElementById('authError'); el.textContent = ''; el.style.display = 'none'; }
+function clearAuthError()   { const el = document.getElementById('authError'); el.textContent = ''; el.style.display = 'none'; }
 
 async function handleLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('loginBtn');
-  btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>Signing in…';
+  btn.disabled = true; btn.textContent = 'Logging in…';
   clearAuthError();
   try {
     const data = await apiFetch('/auth/login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: document.getElementById('loginEmail').value, password: document.getElementById('loginPassword').value }),
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email: loginEmail.value, password: loginPassword.value }),
     });
     token = data.token; localStorage.setItem('dsa_token', token);
     await bootstrap();
-  } catch (err) { showAuthError(err.message || 'Login failed.'); }
-  finally { btn.disabled = false; btn.innerHTML = 'Sign In'; }
+  } catch (err) {
+    showAuthError(err.message || 'Login failed.');
+  } finally { btn.disabled = false; btn.textContent = 'Login'; }
 }
 
 async function handleRegister(e) {
   e.preventDefault();
   const btn = document.getElementById('registerBtn');
-  btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>Creating…';
+  btn.disabled = true; btn.textContent = 'Creating…';
   clearAuthError();
   try {
     const data = await apiFetch('/auth/register', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: document.getElementById('regUsername').value, email: document.getElementById('regEmail').value, password: document.getElementById('regPassword').value }),
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username: regUsername.value, email: regEmail.value, password: regPassword.value }),
     });
     token = data.token; localStorage.setItem('dsa_token', token);
     await bootstrap();
-    showToast('🎉 Welcome! Account created.', 'success');
-  } catch (err) { showAuthError(err.message || 'Registration failed.'); }
-  finally { btn.disabled = false; btn.innerHTML = 'Create Account'; }
+    showToast('🎉 Welcome to NexusTrack!', 'success');
+  } catch (err) {
+    showAuthError(err.message || 'Registration failed.');
+  } finally { btn.disabled = false; btn.textContent = 'Create Account'; }
 }
 
 function logout() {
-  showConfirmPopup('You will be signed out of your account.', () => {
+  showConfirmPopup('Log out?', '⏻', () => {
     token = null; localStorage.removeItem('dsa_token');
-    currentUser = null; allTopics = { dsa: [], ai: [] }; progressMap = {};
+    currentUser = null; topics = []; progressMap = {};
     document.getElementById('content').innerHTML = '';
     showAuth();
-  }, { icon: '🚪', title: 'Log out?', confirmLabel: 'Log out' });
+  });
 }
 
-// ── API HELPERS ───────────────────────────────────────
+// ── API ────────────────────────────────────────────────────
 function authHeaders() { return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }; }
 
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API}${path}`, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
   const text = await res.text();
   let data = {};
-  if (text) { try { data = JSON.parse(text); } catch { throw new Error(`Invalid response from ${path}`); } }
+  if (text) { try { data = JSON.parse(text); } catch { throw new Error(`Invalid JSON from ${path}`); } }
   if (!res.ok) throw new Error(data.message || `API error (${res.status})`);
   return data;
 }
@@ -180,411 +184,546 @@ async function apiFetch(path, opts = {}) {
 async function verifyToken() {
   const data = await apiFetch('/auth/me');
   currentUser = data.user;
-  document.getElementById('userName').textContent = currentUser.username;
+  document.getElementById('userName').textContent   = currentUser.username;
   document.getElementById('userAvatar').textContent = currentUser.username[0].toUpperCase();
-  const streak = currentUser.streak?.current || 0;
-  document.getElementById('userStreak').innerHTML = `🔥 <b>${streak}</b> day streak`;
+  const streak  = currentUser.streak?.current || 0;
+  const longest = currentUser.streak?.longest || 0;
+  let s = `🔥 <b>${streak}</b> day streak`;
+  if (longest > 0) s += ` <span style="color:var(--blue);font-size:11px">(best: ${longest})</span>`;
+  document.getElementById('userStreak').innerHTML = s;
+  renderStreakHeatmap();
 }
 
-// ── DATA LOADING ──────────────────────────────────────
-async function loadTopics(track) {
+// ── LOADING ────────────────────────────────────────────────
+function showLoading() { const b = document.getElementById('topBar'); b.classList.add('active'); document.getElementById('topBarFill').style.width = '60%'; }
+function hideLoading() { const f = document.getElementById('topBarFill'); f.style.width = '100%'; setTimeout(() => { document.getElementById('topBar').classList.remove('active'); f.style.width = '0'; }, 300); }
+function showSpinner() { document.getElementById('spinnerOverlay').style.display = 'flex'; }
+function hideSpinner() { document.getElementById('spinnerOverlay').style.display = 'none'; }
+
+// ── DATA LOADING ───────────────────────────────────────────
+async function loadTopics() {
+  showLoading();
   try {
-    const data = await apiFetch(`/questions/topics?track=${track}`);
-    allTopics[track] = data.topics || [];
-    if (track === 'ai') buildPhaseTabs();
-  } catch (err) { console.error('loadTopics error', err); }
+    const data = await apiFetch(`/questions/topics?track=${currentTrack}`);
+    topics = data.topics || [];
+  } catch (err) {
+    showPopup('Failed to load topics.', '⚠️');
+  } finally { hideLoading(); }
 }
 
 async function loadProgress() {
-  if (!token) return;
   try {
     const data = await apiFetch('/progress');
     progressMap = data.progressMap || {};
-  } catch (err) { console.error('loadProgress error', err); }
+    renderStreakHeatmap();
+  } catch { /* silent */ }
 }
 
-// ── SIDEBAR ───────────────────────────────────────────
+// ── HEATMAP ────────────────────────────────────────────────
+function renderStreakHeatmap() {
+  const container = document.getElementById('streakHeatmap');
+  if (!container) return;
+  const solvedDates = {};
+  Object.values(progressMap).forEach(p => {
+    if (p.solvedAt) {
+      const key = new Date(p.solvedAt).toISOString().slice(0,10);
+      solvedDates[key] = (solvedDates[key] || 0) + 1;
+    }
+  });
+  const today  = new Date();
+  const weeks  = 53;
+  const start  = new Date(today);
+  start.setDate(today.getDate() - (weeks * 7 - (today.getDay() + 1)));
+  container.innerHTML = '';
+  for (let w = 0; w < weeks; w++) {
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + w * 7 + d);
+      const key   = date.toISOString().slice(0,10);
+      const count = solvedDates[key] || 0;
+      const dot   = document.createElement('div');
+      dot.className = 'streak-dot';
+      const level = count >= 4 ? 4 : count;
+      dot.classList.add('level-' + level);
+      if (key === today.toISOString().slice(0,10)) dot.classList.add('today');
+      dot.title = `${key}: ${count ? count + ' solved' : 'No activity'}`;
+      container.appendChild(dot);
+    }
+  }
+}
+
+// ── TOGGLE SOLVED ──────────────────────────────────────────
+async function toggleSolved(questionId, fromModal = false) {
+  const wasSolved = !!progressMap[questionId];
+  if (wasSolved) { delete progressMap[questionId]; }
+  else           { progressMap[questionId] = { status: 'solved', solvedAt: new Date().toISOString() }; }
+  updateRowUI(questionId);
+  updateAllStats();
+  try {
+    await apiFetch('/progress/toggle', { method: 'POST', body: JSON.stringify({ questionId }) });
+    showToast(wasSolved ? '↩ Unmarked' : '✅ Marked solved!', wasSolved ? '' : 'success');
+    if (fromModal) renderModalActions();
+  } catch {
+    // rollback
+    if (wasSolved) { progressMap[questionId] = { status: 'solved' }; }
+    else           { delete progressMap[questionId]; }
+    updateRowUI(questionId);
+    updateAllStats();
+    showToast('Error saving', 'error');
+  }
+}
+
+function updateRowUI(questionId) {
+  const isSolved = !!progressMap[questionId];
+  // DSA row
+  const row = document.getElementById('row_' + questionId);
+  if (row) {
+    row.classList.toggle('solved', isSolved);
+    const cb = row.querySelector('.q-check'); if (cb) cb.checked = isSolved;
+    const numEl = row.querySelector('.q-num');
+    if (numEl) numEl.textContent = isSolved ? '✓' : (numEl.dataset.idx || '');
+    if (isSolved) { row.classList.add('just-solved'); setTimeout(() => row.classList.remove('just-solved'), 400); }
+    const topicId = row.dataset.topicId;
+    if (topicId) updateTopicBar(topicId);
+  }
+  // AI card
+  const btn = document.getElementById('aibtn_' + questionId);
+  if (btn) {
+    btn.classList.toggle('done', isSolved);
+    btn.textContent = isSolved ? '✓' : '○';
+    const card = document.getElementById('aicard_' + questionId);
+    if (card) card.classList.toggle('done', isSolved);
+    const topicId = btn.dataset.topicId;
+    if (topicId) updateTopicBar(topicId);
+  }
+}
+
+function updateTopicBar(topicId) {
+  const t = topics.find(t => t._id === topicId);
+  if (!t) return;
+  const done = t.questions.filter(q => progressMap[q._id]).length;
+  const pct  = Math.round(done / t.questions.length * 100);
+  const bar = document.querySelector(`.topic-bar-fill[data-id="${topicId}"]`);
+  if (bar) bar.style.width = pct + '%';
+  const cnt = document.querySelector(`.topic-count[data-id="${topicId}"]`);
+  if (cnt) cnt.textContent = `${done}/${t.questions.length}`;
+  const navProg = document.querySelector(`.nav-item[data-id="${topicId}"] .nav-prog`);
+  if (navProg) navProg.textContent = `${done}/${t.questions.length}`;
+  const navItem = document.querySelector(`.nav-item[data-id="${topicId}"]`);
+  if (navItem) navItem.classList.toggle('all-done', done === t.questions.length);
+}
+
+// ── STATS ──────────────────────────────────────────────────
+function computeStats() {
+  let total=0, done=0, easy=0, med=0, hard=0, eD=0, mD=0, hD=0;
+  topics.forEach(t => t.questions.forEach(q => {
+    total++;
+    if (q.difficulty === 'Easy') easy++; else if (q.difficulty === 'Medium') med++; else hard++;
+    if (progressMap[q._id]) {
+      done++;
+      if (q.difficulty === 'Easy') eD++; else if (q.difficulty === 'Medium') mD++; else hD++;
+    }
+  }));
+  return { total, done, easy, med, hard, eD, mD, hD };
+}
+
+function updateAllStats() {
+  const s = computeStats();
+  const pct    = s.total ? Math.round(s.done / s.total * 100) : 0;
+  const offset = 213.6 - (pct / 100) * 213.6;
+  document.getElementById('circleNum').textContent   = s.done;
+  document.getElementById('circleTotal').textContent = s.total;
+  document.getElementById('circleRing').style.strokeDashoffset = offset;
+  document.getElementById('overallPct').textContent  = pct + '% Complete';
+  document.getElementById('mEasy').textContent = `${s.eD}/${s.easy}`;
+  document.getElementById('mMed').textContent  = `${s.mD}/${s.med}`;
+  document.getElementById('mHard').textContent = `${s.hD}/${s.hard}`;
+  document.getElementById('hTotal').textContent  = s.total;
+  document.getElementById('hDone').textContent   = s.done;
+  document.getElementById('hLeft').textContent   = s.total - s.done;
+  document.getElementById('hTopics').textContent = topics.length;
+}
+
+// ── SIDEBAR ─────────────────────────────────────────────────
 function buildSidebar() {
   const nav = document.getElementById('topicNav');
-  const topics = allTopics[currentTrack] || [];
-  let html = '';
-
+  nav.innerHTML = '';
+  // For AI mode, group by phase
   if (currentTrack === 'ai') {
-    let lastPhase = '';
+    const phaseGroups = {};
     topics.forEach(t => {
-      if (t.phase && t.phase !== lastPhase) {
-        html += `<div class="nav-phase-header">${t.phase}</div>`;
-        lastPhase = t.phase;
-      }
-      const solved = (t.questions || []).filter(q => progressMap[q._id]).length;
-      const total = (t.questions || []).length;
-      html += `<a class="topic-nav-item" href="#topic-${t._id}" onclick="scrollToTopic('${t._id}')">
-        <span class="nav-emoji">${t.emoji}</span>
-        <span class="nav-label">${t.name}</span>
-        <span class="nav-count">${solved}/${total}</span>
-      </a>`;
+      const key = t.phaseIndex || 0;
+      if (!phaseGroups[key]) phaseGroups[key] = { label: t.phase || 'Phase', items: [] };
+      phaseGroups[key].items.push(t);
+    });
+    Object.entries(phaseGroups).sort((a,b) => +a[0] - +b[0]).forEach(([idx, group]) => {
+      const ph = document.createElement('div');
+      ph.style.cssText = 'padding: 10px 16px 4px; font-size: .65rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); font-weight: 700;';
+      ph.textContent = (group.label || '').replace(/^Phase \d+:\s*/, '') || `Phase ${idx}`;
+      nav.appendChild(ph);
+      group.items.forEach(t => addNavItem(nav, t));
     });
   } else {
-    topics.forEach(t => {
-      const solved = (t.questions || []).filter(q => progressMap[q._id]).length;
-      const total = (t.questions || []).length;
-      html += `<a class="topic-nav-item" href="#topic-${t._id}" onclick="scrollToTopic('${t._id}')">
-        <span class="nav-emoji">${t.emoji}</span>
-        <span class="nav-label">${t.name}</span>
-        <span class="nav-count">${solved}/${total}</span>
-      </a>`;
-    });
+    topics.forEach(t => addNavItem(nav, t));
   }
-
-  nav.innerHTML = html || '<div style="color:var(--text-muted);font-size:13px;padding:12px">No topics loaded</div>';
 }
 
-function scrollToTopic(id) {
-  expanded[id] = true;
-  closeSidebar();
-  filterAndRender();
-  setTimeout(() => {
-    const el = document.getElementById('topic-' + id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 80);
+function addNavItem(nav, t) {
+  const done = t.questions.filter(q => progressMap[q._id]).length;
+  const el = document.createElement('a');
+  el.className = 'nav-item';
+  el.dataset.id = t._id;
+  if (done === t.questions.length && done > 0) el.classList.add('all-done');
+  el.innerHTML = `<span class="nav-emoji">${t.emoji}</span><span class="nav-name">${t.name}</span><span class="nav-prog">${done}/${t.questions.length}</span>`;
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    expanded[t._id] = true;
+    filterAndRender();
+    setTimeout(() => {
+      const el = document.getElementById('topic-' + t._id) || document.getElementById('aicard-group-' + t._id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    if (window.innerWidth <= 768) closeSidebar();
+  });
+  nav.appendChild(el);
 }
 
-// ── RENDER ────────────────────────────────────────────
+function toggleSidebar()  { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('open'); }
+function closeSidebar()   { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('open'); }
+
+// ── FILTER & RENDER ────────────────────────────────────────
 function filterAndRender() {
-  const search = document.getElementById('searchInput')?.value?.toLowerCase() || '';
-  const diff = document.getElementById('diffFilter')?.value || '';
-  const status = document.getElementById('statusFilter')?.value || '';
+  if (currentTrack === 'ai') {
+    renderAiTopics();
+  } else {
+    renderDsaTopics();
+  }
+}
 
-  let topics = (allTopics[currentTrack] || []).filter(t => {
-    if (currentTrack === 'ai' && currentPhase !== 'all' && t.phase !== currentPhase) return false;
-    return true;
+function renderDsaTopics() {
+  const diff   = document.getElementById('diffFilter').value;
+  const status = document.getElementById('statusFilter').value;
+  const search = document.getElementById('searchInput').value.toLowerCase().trim();
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+  let anyVisible = false;
+
+  topics.forEach((t, ti) => {
+    const filtered = t.questions.filter(q => {
+      if (diff && q.difficulty !== diff) return false;
+      const solved = !!progressMap[q._id];
+      if (status === 'done' && !solved) return false;
+      if (status === 'todo' &&  solved) return false;
+      if (search) {
+        const hay = [q.title, q.pattern, (q.companies||[]).join(' '), q.lcNumber, t.name].join(' ').toLowerCase();
+        if (!hay.includes(search)) return false;
+      }
+      return true;
+    });
+    if (!filtered.length) return;
+    anyVisible = true;
+
+    const done = t.questions.filter(q => progressMap[q._id]).length;
+    const pct  = Math.round(done / t.questions.length * 100);
+    const isOpen = expanded[t._id] !== false;
+    const section = document.createElement('div');
+    section.className = `topic-section${isOpen ? ' open' : ''}`;
+    section.id = 'topic-' + t._id;
+    section.style.animationDelay = ti * 0.03 + 's';
+    section.innerHTML = `
+      <div class="topic-header" onclick="toggleTopic('${t._id}')">
+        <span class="topic-emoji">${t.emoji}</span>
+        <div class="topic-name-wrap">
+          <span class="topic-name">${t.name}</span>
+          <span class="topic-sub">${t.count} questions · E:${t.easyCount} M:${t.mediumCount} H:${t.hardCount}</span>
+        </div>
+        <div class="topic-right">
+          <span class="topic-count" data-id="${t._id}">${done}/${t.questions.length}</span>
+          <div class="topic-bar-wrap"><div class="topic-bar-bg"><div class="topic-bar-fill" data-id="${t._id}" style="width:${pct}%"></div></div></div>
+          <span class="topic-chevron ${isOpen ? 'open' : ''}" id="chev-${t._id}">▼</span>
+        </div>
+      </div>
+      <div class="topic-body${isOpen ? ' open' : ''}" id="tbody-${t._id}">
+        <table class="q-table">
+          <thead><tr>
+            <th class="col-check">✓</th><th class="col-num">#</th>
+            <th class="col-name">Problem</th><th class="col-diff">Level</th>
+            <th class="col-pat">Pattern</th><th class="col-co">Companies</th>
+            <th class="col-lc">Link</th><th class="col-info">Info</th>
+          </tr></thead>
+          <tbody id="qbody-${t._id}"></tbody>
+        </table>
+      </div>`;
+    content.appendChild(section);
+    const tbody = document.getElementById('qbody-' + t._id);
+    filtered.forEach((q, i) => {
+      const isSolved = !!progressMap[q._id];
+      const isGFG = (q.lcNumber||'').includes('GFG') || (q.lcNumber||'').includes('SPOJ');
+      const tr = document.createElement('tr');
+      tr.id = 'row_' + q._id; tr.dataset.topicId = t._id;
+      tr.className = isSolved ? 'solved' : '';
+      tr.innerHTML = `
+        <td class="col-check"><input type="checkbox" class="q-check" ${isSolved?'checked':''} onchange="toggleSolved('${q._id}')"/></td>
+        <td class="col-num"><div class="q-num" data-idx="${i+1}">${isSolved?'✓':i+1}</div></td>
+        <td class="col-name q-name">${q.title}</td>
+        <td class="col-diff"><span class="badge badge-${q.difficulty.toLowerCase()}">${q.difficulty}</span></td>
+        <td class="col-pat">${q.pattern||''}</td>
+        <td class="col-co">${(q.companies||[]).slice(0,3).join(' · ')}</td>
+        <td class="col-lc"><a href="${q.lcLink}" target="_blank" class="lc-link${isGFG?' gfg-link':''}" onclick="event.stopPropagation()">${q.lcNumber} ↗</a></td>
+        <td class="col-info"><button class="info-btn" onclick="openModal('${t._id}','${q._id}')">?</button></td>`;
+      tbody.appendChild(tr);
+    });
   });
 
-  const content = document.getElementById('content');
-  if (!topics.length) {
-    content.innerHTML = `<div class="empty-state"><div style="font-size:48px">📭</div><p>No topics found. Run <code>npm run seed:ai</code> to load AI topics.</p></div>`;
-    updateAllStats();
-    return;
+  if (!anyVisible) {
+    content.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>No questions match your filters.<br>Try adjusting the filters above.</p></div>`;
   }
+}
 
-  let totalQ = 0, totalShown = 0;
-  const html = topics.map(topic => {
-    let questions = topic.questions || [];
+function renderAiTopics() {
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+  let anyVisible = false;
 
-    if (search) questions = questions.filter(q =>
-      q.title?.toLowerCase().includes(search) ||
-      q.pattern?.toLowerCase().includes(search) ||
-      (q.tags || []).some(t => t.toLowerCase().includes(search)) ||
-      (q.companies || []).some(c => c.toLowerCase().includes(search))
-    );
-    if (diff) questions = questions.filter(q => q.difficulty === diff);
-    if (status === 'done') questions = questions.filter(q => progressMap[q._id]);
-    if (status === 'todo') questions = questions.filter(q => !progressMap[q._id]);
+  // Filter by current phase
+  const visibleTopics = currentPhase === 0
+    ? topics
+    : topics.filter(t => (t.phaseIndex || 0) === currentPhase);
 
-    if (!questions.length && (search || diff || status)) return '';
+  // Group by phase
+  const phaseGroups = {};
+  visibleTopics.forEach(t => {
+    const key = t.phaseIndex || 0;
+    if (!phaseGroups[key]) phaseGroups[key] = { label: t.phase || '', items: [] };
+    phaseGroups[key].items.push(t);
+  });
 
-    const solved = (topic.questions || []).filter(q => progressMap[q._id]).length;
-    const total = (topic.questions || []).length;
-    const pct = total > 0 ? Math.round(solved / total * 100) : 0;
-    totalQ += total; totalShown += solved;
+  Object.entries(phaseGroups).sort((a,b) => +a[0] - +b[0]).forEach(([idx, group], gi) => {
+    if (!group.items.length) return;
+    anyVisible = true;
 
-    const isOpen = expanded[topic._id];
+    const phDiv = document.createElement('div');
+    phDiv.id = 'aicard-group-' + idx;
+    if (currentPhase === 0) {
+      phDiv.innerHTML = `<div class="ai-phase-header">📌 ${group.label || 'Phase '+idx} <span class="phase-count">(${group.items.length} topics)</span></div>`;
+    }
 
-    const qRows = questions.map(q => {
-      const done = !!progressMap[q._id];
-      const tagHtml = q.tag ? `<span class="q-tag-pill qtag-${q.tag}">${q.tag.toUpperCase()}</span>` : '';
-      const diffClass = `diff-${(q.difficulty || '').toLowerCase()}`;
-      const links = [];
-      if (q.lcLink) links.push(`<a class="q-link" href="${q.lcLink}" target="_blank" onclick="e?.stopPropagation()">🔗 ${q.platform || 'Link'}</a>`);
+    group.items.forEach((t, ti) => {
+      const done    = t.questions.filter(q => progressMap[q._id]).length;
+      const total   = t.questions.length;
+      const pct     = Math.round(done / total * 100);
+      const isOpen  = expanded[t._id] !== false;
+      const isDone  = done === total && total > 0;
+      const q       = t.questions[0]; // main topic doc
 
-      return `<div class="q-row" onclick="toggleProgress('${q._id}', '${escHtml(q.topicId)}')">
-        <div class="q-check ${done ? 'solved' : ''}"></div>
-        <div class="q-title-wrap" style="flex:1">
-          <div class="q-title ${done ? 'solved-title' : ''}">${escHtml(q.title)}</div>
-          ${q.pattern ? `<div class="q-desc">${escHtml(q.pattern)}</div>` : ''}
+      const tagClass = `ai-tag-${(q?.tag || 'core').toLowerCase()}`;
+
+      const cardEl = document.createElement('div');
+      cardEl.className = `ai-topic-card${isDone ? ' done' : ''}`;
+      cardEl.id = 'topic-' + t._id;
+      cardEl.style.animationDelay = (gi * 0.05 + ti * 0.03) + 's';
+
+      const descHtml = q?.description
+        ? `<div class="ai-card-desc">${q.description}</div>` : '';
+
+      const tasksHtml = q?.practiceTasks?.length
+        ? `<div class="ai-section-label">✅ Practice Tasks</div><ul class="ai-tasks">${q.practiceTasks.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
+
+      const ytHtml = q?.youtubeResources?.length
+        ? `<div class="ai-section-label">▶ YouTube Resources</div><div class="ai-resources">${q.youtubeResources.map(r => `<a href="${r.url}" target="_blank" class="ai-res-link ai-res-yt">🎬 ${r.title}${r.duration ? ` <span style="opacity:.6">(${r.duration})</span>` : ''}</a>`).join('')}</div>` : '';
+
+      const docHtml = q?.docResources?.length
+        ? `<div class="ai-section-label">📖 Documentation & Papers</div><div class="ai-resources">${q.docResources.map(r => `<a href="${r.url}" target="_blank" class="ai-res-link">📄 ${r.title}</a>`).join('')}</div>` : '';
+
+      const prereqHtml = q?.prerequisites?.length
+        ? `<div class="ai-section-label">🔗 Prerequisites</div><div class="ai-prereqs">${q.prerequisites.map(p => `<span class="ai-prereq-chip">${p}</span>`).join('')}</div>` : '';
+
+      const projectHtml = q?.isProject ? `
+        <div class="project-banner">
+          <strong>🚀 Project</strong>${q.problemStatement ? ` — ${q.problemStatement}` : ''}
+          ${q.expectedOutcome ? `<br><strong>Goal:</strong> ${q.expectedOutcome}` : ''}
         </div>
-        <div class="q-right">
-          ${tagHtml}
-          <span class="diff-badge ${diffClass}">${q.difficulty}</span>
-          ${links.join('')}
-          <button class="q-info-btn" onclick="event.stopPropagation(); openModal('${q._id}')">ℹ</button>
-        </div>
-      </div>`;
-    }).join('');
+        ${q.techStack?.length ? `<div class="ai-section-label">⚙️ Tech Stack</div><div class="ai-tech-stack">${q.techStack.map(s => `<span class="ai-tech-chip">${s}</span>`).join('')}</div>` : ''}
+        ${q.features?.length ? `<div class="ai-section-label">✨ Features</div><ul class="ai-tasks">${q.features.map(f => `<li>${f}</li>`).join('')}</ul>` : ''}
+      ` : '';
 
-    const phaseTag = currentTrack === 'ai' && topic.phase
-      ? `<span class="topic-phase-tag">${topic.phase.replace('Phase ', 'Ph ')}</span>` : '';
+      const hintHtml = q?.hint
+        ? `<div class="ai-section-label">💡 Key Insight</div><div class="modal-hint-box">${q.hint}</div>` : '';
+      const proTipHtml = q?.proTip
+        ? `<div class="modal-tip">⭐ <strong>Pro Tip:</strong> ${q.proTip}</div>` : '';
 
-    return `<div class="topic-group" id="topic-${topic._id}" style="animation-delay:${Math.random()*0.1}s">
-      <div class="topic-header" onclick="toggleTopic('${topic._id}')">
-        <span class="topic-emoji">${topic.emoji}</span>
-        <div class="topic-title-wrap">
-          <div class="topic-name">${topic.name}${phaseTag}</div>
-          <div class="topic-meta">${topic.easyCount || 0} Easy · ${topic.mediumCount || 0} Medium · ${topic.hardCount || 0} Hard</div>
-        </div>
-        <div class="topic-progress-wrap">
-          <div class="topic-mini-bar"><div class="topic-mini-fill" style="width:${pct}%"></div></div>
-          <span class="topic-count">${solved}/${total}</span>
-        </div>
-        <span class="topic-chevron ${isOpen ? 'open' : ''}">▶</span>
-      </div>
-      <div class="questions-table ${isOpen ? 'open' : ''}">${qRows}</div>
-    </div>`;
-  }).join('');
+      const multiQ = total > 1
+        ? `<div class="ai-section-label">📋 All ${total} sub-topics</div><ul class="ai-tasks">${t.questions.map(q2 => `<li style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="accent-color:var(--accent);flex-shrink:0" ${progressMap[q2._id]?'checked':''} onchange="toggleSolved('${q2._id}')"> ${q2.title} <span class="badge badge-${q2.difficulty.toLowerCase()}" style="font-size:.63rem">${q2.difficulty}</span></li>`).join('')}</ul>` : '';
 
-  content.innerHTML = html || `<div class="empty-state"><div style="font-size:48px">🔍</div><p>No results for your filters.</p></div>`;
-  updateAllStats(totalQ, totalShown);
+      cardEl.innerHTML = `
+        <div class="ai-card-header" onclick="toggleAiCard('${t._id}')">
+          <span class="ai-card-emoji">${t.emoji}</span>
+          <div class="ai-card-info">
+            <div class="ai-card-title">${t.name}</div>
+            <div class="ai-card-meta">
+              <span class="ai-tag ${tagClass}">${q?.tag || 'core'}</span>
+              <span class="badge badge-${(q?.difficulty||'Easy').toLowerCase()}">${q?.difficulty||'Easy'}</span>
+              ${q?.estimatedTime ? `<span class="ai-card-time">⏱ ${q.estimatedTime}</span>` : ''}
+              ${total > 1 ? `<span class="ai-card-time">📦 ${total} topics</span>` : ''}
+            </div>
+          </div>
+          <div class="ai-card-right">
+            <button id="aibtn_${q?._id}" data-topic-id="${t._id}" class="ai-check-btn${isDone?' done':''}" onclick="event.stopPropagation();toggleSolved('${q?._id}')" title="${isDone?'Mark incomplete':'Mark complete'}">${isDone?'✓':'○'}</button>
+            <div class="topic-bar-bg" style="width:60px"><div class="topic-bar-fill" data-id="${t._id}" style="width:${pct}%"></div></div>
+            <span class="topic-count" data-id="${t._id}" style="font-size:.7rem">${done}/${total}</span>
+          </div>
+        </div>
+        <div class="ai-card-body${isOpen?' open':''}" id="tbody-${t._id}">
+          ${projectHtml}
+          ${descHtml}
+          ${prereqHtml}
+          ${tasksHtml}
+          ${hintHtml}
+          ${proTipHtml}
+          ${ytHtml}
+          ${docHtml}
+          ${multiQ}
+        </div>`;
+
+      // Set card id for scroll
+      cardEl.querySelector('.ai-card-header').id = 'aicard-group-' + t._id;
+      phDiv.appendChild(cardEl);
+    });
+
+    content.appendChild(phDiv);
+  });
+
+  if (!anyVisible) {
+    content.innerHTML = `<div class="empty-state"><div class="empty-icon">🤖</div><p>No AI/ML topics found.<br>Run <code style="background:var(--bg-raised);padding:2px 6px;border-radius:4px">node seed-ai.js</code> to seed the roadmap.</p></div>`;
+  }
 }
 
 function toggleTopic(id) {
-  expanded[id] = !expanded[id];
-  filterAndRender();
-}
-function expandAll() { (allTopics[currentTrack] || []).forEach(t => expanded[t._id] = true); filterAndRender(); }
-function collapseAll() { expanded = {}; filterAndRender(); }
-
-// ── PROGRESS TOGGLE ───────────────────────────────────
-async function toggleProgress(questionId, topicId) {
-  const wasActive = !!progressMap[questionId];
-  if (wasActive) { delete progressMap[questionId]; } 
-  else { progressMap[questionId] = { status: 'solved', solvedAt: new Date().toISOString() }; }
-  filterAndRender();
-  updateAllStats();
-  try {
-    const data = await apiFetch('/progress/toggle', {
-      method: 'POST', body: JSON.stringify({ questionId }),
-    });
-    if (data.action === 'added') {
-      showToast(currentTrack === 'ai' ? '✅ Topic completed!' : '⚡ Solved!', 'success');
-    } else {
-      showToast('↩ Marked incomplete', '');
-    }
-    buildSidebar();
-  } catch (err) {
-    if (wasActive) progressMap[questionId] = { status: 'solved' };
-    else delete progressMap[questionId];
-    filterAndRender(); updateAllStats();
-    showToast('Error saving progress', 'error');
-  }
+  expanded[id] = !(expanded[id] !== false);
+  const body = document.getElementById('tbody-' + id);
+  const chev = document.getElementById('chev-' + id);
+  if (body) body.classList.toggle('open', expanded[id]);
+  if (chev) chev.classList.toggle('open', expanded[id]);
+  const section = document.getElementById('topic-' + id);
+  if (section) section.classList.toggle('open', expanded[id]);
 }
 
-// ── MODAL ─────────────────────────────────────────────
-function openModal(qId) {
-  const topics = allTopics[currentTrack] || [];
-  let q = null;
-  for (const t of topics) {
-    q = (t.questions || []).find(x => x._id === qId);
-    if (q) break;
-  }
-  if (!q) return;
+function toggleAiCard(id) {
+  expanded[id] = !(expanded[id] !== false);
+  const body = document.getElementById('tbody-' + id);
+  if (body) body.classList.toggle('open', expanded[id]);
+}
 
-  const ytHtml = (q.youtubeResources || []).length > 0
-    ? `<div class="modal-section">
-        <div class="modal-section-title">📺 YouTube Resources</div>
-        <div class="yt-resources">
-          ${(q.youtubeResources || []).map(yt => `
-            <a class="yt-item" href="${yt.url}" target="_blank" rel="noopener">
-              <span class="yt-icon">▶️</span>
-              <div class="yt-info">
-                <div class="yt-title">${escHtml(yt.title)}</div>
-                <div class="yt-meta">${escHtml(yt.channel)}</div>
-              </div>
-              ${yt.duration ? `<span class="yt-duration">${escHtml(yt.duration)}</span>` : ''}
-            </a>`).join('')}
-        </div>
-      </div>` : '';
+function expandAll()  { topics.forEach(t => { expanded[t._id] = true;  }); filterAndRender(); }
+function collapseAll(){ topics.forEach(t => { expanded[t._id] = false; }); filterAndRender(); }
 
-  const diffClass = `diff-${(q.difficulty || '').toLowerCase()}`;
-  const tagHtml = q.tag ? `<span class="q-tag-pill qtag-${q.tag}" style="margin-right:8px">${q.tag.toUpperCase()}</span>` : '';
-
+// ── DSA MODAL ──────────────────────────────────────────────
+function openModal(topicId, questionId) {
+  const t = topics.find(t => t._id === topicId); if (!t) return;
+  const q = t.questions.find(q => q._id === questionId); if (!q) return;
+  modalQ = { topicId, questionId, q };
+  const isSolved = !!progressMap[questionId];
+  const isGFG = (q.lcNumber||'').includes('GFG') || (q.lcNumber||'').includes('SPOJ');
   document.getElementById('modalBody').innerHTML = `
-    <div class="modal-title">${escHtml(q.title)}</div>
-    <div class="modal-sub">
-      ${tagHtml}
-      <span class="diff-badge ${diffClass}">${q.difficulty}</span>
-      ${q.topicName ? ` · ${escHtml(q.topicName)}` : ''}
-      ${q.lcNumber ? ` · LC #${q.lcNumber}` : ''}
+    <div class="modal-title">${q.title}</div>
+    <div class="modal-meta">
+      <span class="badge badge-${q.difficulty.toLowerCase()}">${q.difficulty}</span>
+      <span class="badge" style="background:var(--bg-active);color:var(--text-secondary)">${t.emoji} ${t.name}</span>
+      ${isSolved ? '<span class="badge" style="background:var(--green-dim);color:var(--green)">✓ Solved</span>' : ''}
     </div>
-    ${q.hint ? `<div class="modal-section">
-      <div class="modal-section-title">💡 Hint / Key Insight</div>
-      <div class="modal-section-body">${escHtml(q.hint)}</div>
-    </div>` : ''}
-    ${q.approach ? `<div class="modal-section">
-      <div class="modal-section-title">🎯 Approach / How to Study</div>
-      <div class="modal-section-body">${escHtml(q.approach)}</div>
-    </div>` : ''}
-    ${q.proTip ? `<div class="modal-section">
-      <div class="modal-section-title">⭐ Pro Tip</div>
-      <div class="modal-tip">${escHtml(q.proTip)}</div>
-    </div>` : ''}
-    ${(q.timeComplexity || q.spaceComplexity) ? `<div class="modal-section">
-      <div class="modal-section-title">📊 Complexity</div>
-      <div class="complexity-row">
-        ${q.timeComplexity ? `<span class="complexity-pill">⏱ Time: ${escHtml(q.timeComplexity)}</span>` : ''}
-        ${q.spaceComplexity ? `<span class="complexity-pill">🗄 Space: ${escHtml(q.spaceComplexity)}</span>` : ''}
-      </div>
-    </div>` : ''}
-    ${ytHtml}
-    ${q.lcLink ? `<div class="modal-section">
-      <a class="q-link" href="${q.lcLink}" target="_blank" style="font-size:13px; display:inline-flex; align-items:center; gap:6px">
-        🔗 Open on ${q.platform || 'Link'}
-      </a>
-    </div>` : ''}
-  `;
+    <div class="modal-grid">
+      <div class="modal-info-box"><div class="modal-info-label">Companies</div><div class="modal-info-val" style="font-size:.78rem">${(q.companies||[]).join(' · ')||'—'}</div></div>
+      <div class="modal-info-box"><div class="modal-info-label">Pattern</div><div class="modal-info-val" style="font-size:.82rem">${q.pattern||'—'}</div></div>
+      <div class="modal-info-box"><div class="modal-info-label">Platform</div><div class="modal-info-val">${q.lcNumber||'—'}</div></div>
+      <div class="modal-info-box"><div class="modal-info-label">Tags</div><div class="modal-info-val" style="font-size:.78rem">${(q.tags||[]).join(', ')||'—'}</div></div>
+    </div>
+    ${q.timeComplexity||q.spaceComplexity ? `<div class="modal-complexity">${q.timeComplexity?`<div class="complexity-chip">⏱ ${q.timeComplexity}</div>`:''} ${q.spaceComplexity?`<div class="complexity-chip">💾 ${q.spaceComplexity}</div>`:''}</div>` : ''}
+    <div class="modal-section-title">💡 Hint</div>
+    <div class="modal-hint-box">${q.hint||'No hint available.'}</div>
+    <div class="modal-section-title">🧩 Approach</div>
+    <div class="modal-approach">${q.approach||'No approach details available.'}</div>
+    <div class="modal-tip">⭐ <strong>Pro Tip:</strong> ${q.proTip||q.tip||'Study the pattern carefully.'}</div>
+    <div class="modal-actions" id="modalActions"></div>`;
+  renderModalActions();
   document.getElementById('modalOverlay').classList.add('open');
   document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function renderModalActions() {
+  if (!modalQ) return;
+  const { questionId, q } = modalQ;
+  const isGFG    = (q.lcNumber||'').includes('GFG');
+  const isSolved = !!progressMap[questionId];
+  const el = document.getElementById('modalActions');
+  if (el) el.innerHTML = `
+    <a href="${q.lcLink}" target="_blank" class="modal-lc-btn">Open ${isGFG?'GFG':'LeetCode'} ↗</a>
+    ${isSolved
+      ? `<button class="modal-unsolve-btn" onclick="toggleSolved('${questionId}',true)">Unmark ✗</button>`
+      : `<button class="modal-solve-btn" onclick="toggleSolved('${questionId}',true)">Mark Solved ✓</button>`}`;
 }
 
 function closeModal() {
   document.getElementById('modalOverlay').classList.remove('open');
   document.getElementById('modal').classList.remove('open');
-}
-
-// ── STATS ─────────────────────────────────────────────
-function updateAllStats(totalQ, totalDone) {
-  const topics = allTopics[currentTrack] || [];
-  let allQ = 0, allDone = 0, easy = 0, med = 0, hard = 0;
-  topics.forEach(t => {
-    (t.questions || []).forEach(q => {
-      allQ++;
-      if (progressMap[q._id]) {
-        allDone++;
-        const d = (q.difficulty || '').toLowerCase();
-        if (d === 'easy' || d === 'beginner') easy++;
-        else if (d === 'medium' || d === 'intermediate') med++;
-        else hard++;
-      }
-    });
-  });
-  const pct = allQ > 0 ? Math.round(allDone / allQ * 100) : 0;
-  const circ = 213.6 * (1 - pct / 100);
-
-  document.getElementById('circleNum').textContent = allDone;
-  document.getElementById('circleTotal').textContent = allQ;
-  document.getElementById('circleRing').style.strokeDashoffset = circ;
-  document.getElementById('overallPct').textContent = pct + '% Complete';
-  document.getElementById('mEasy').textContent = easy;
-  document.getElementById('mMed').textContent = med;
-  document.getElementById('mHard').textContent = hard;
-  document.getElementById('hTotal').textContent = allDone;
-  document.getElementById('hDone').textContent = allDone;
-  document.getElementById('hLeft').textContent = allQ - allDone;
-  document.getElementById('hTopics').textContent = topics.length;
-}
-
-// ── HEATMAP ───────────────────────────────────────────
-function buildHeatmap() {
-  const container = document.getElementById('streakHeatmap');
-  const today = new Date(); today.setHours(0,0,0,0);
-  const days = 53 * 7;
-  let html = '';
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today); d.setDate(d.getDate() - i);
-    const isToday = i === 0;
-    html += `<div class="streak-dot level-0 ${isToday ? 'today' : ''}"></div>`;
-  }
-  container.innerHTML = html;
-}
-
-// ── SIDEBAR TOGGLE ────────────────────────────────────
-function openSidebar() {
-  document.getElementById('sidebar').classList.add('open');
-  document.getElementById('sidebarBackdrop').classList.add('show');
-  document.body.style.overflow = 'hidden';
-}
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarBackdrop').classList.remove('show');
   document.body.style.overflow = '';
+  modalQ = null;
 }
-function toggleSidebar() { const o = document.getElementById('sidebar').classList.contains('open'); o ? closeSidebar() : openSidebar(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// ── LOADING BAR ───────────────────────────────────────
-function showLoadingBar() {
-  const bar = document.getElementById('loadingBar');
-  bar.style.display = 'block';
-  let w = 0;
-  const iv = setInterval(() => { w = Math.min(w + 8, 88); document.getElementById('loadingBarFill').style.width = w + '%'; }, 100);
-  bar._iv = iv;
-}
-function hideLoadingBar() {
-  const bar = document.getElementById('loadingBar');
-  clearInterval(bar._iv);
-  document.getElementById('loadingBarFill').style.width = '100%';
-  setTimeout(() => { bar.style.display = 'none'; document.getElementById('loadingBarFill').style.width = '0'; }, 400);
-}
-
-// ── RESET ─────────────────────────────────────────────
+// ── RESET ──────────────────────────────────────────────────
 async function resetAll() {
-  showConfirmPopup('All your progress will be permanently deleted. This cannot be undone.', async () => {
+  showConfirmPopup('Reset ALL progress? This cannot be undone.', '🗑️', async () => {
     try {
       await apiFetch('/progress/reset', { method: 'DELETE' });
       progressMap = {};
-      filterAndRender(); updateAllStats();
-      showToast('Progress reset', '');
-    } catch (err) { showToast(err.message, 'error'); }
-  }, { icon: '🗑️', title: 'Reset all progress?', confirmLabel: 'Reset', danger: true });
+      updateAllStats();
+      filterAndRender();
+      showToast('🔄 All progress reset', '');
+    } catch { showToast('Error resetting', 'error'); }
+  }, true);
 }
 
-// ── HASH NAV ──────────────────────────────────────────
+// ── POPUP SYSTEM ───────────────────────────────────────────
+function showPopup(msg, icon='ℹ️') {
+  document.getElementById('popupIcon').textContent = icon;
+  document.getElementById('popupTitle').textContent = 'Notice';
+  document.getElementById('popupMsg').textContent   = msg;
+  document.getElementById('popupActions').innerHTML = `<button class="popup-btn popup-btn-ok" onclick="closePopup()">Got it</button>`;
+  document.getElementById('popupBackdrop').style.display = 'flex';
+}
+function showConfirmPopup(msg, icon='❓', onConfirm, isDanger=false) {
+  document.getElementById('popupIcon').textContent  = icon;
+  document.getElementById('popupTitle').textContent = 'Confirm';
+  document.getElementById('popupMsg').textContent   = msg;
+  const cls = isDanger ? 'popup-btn-danger' : 'popup-btn-ok';
+  document.getElementById('popupActions').innerHTML = `
+    <button class="popup-btn popup-btn-cancel" onclick="closePopup()">Cancel</button>
+    <button class="popup-btn ${cls}" onclick="closePopup();(${onConfirm.toString()})()">Confirm</button>`;
+  document.getElementById('popupBackdrop').style.display = 'flex';
+}
+function closePopup() { document.getElementById('popupBackdrop').style.display = 'none'; }
+
+// ── TOAST ──────────────────────────────────────────────────
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast visible ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('visible'), 2800);
+}
+
+// ── HASH NAVIGATION ────────────────────────────────────────
+window.addEventListener('hashchange', handleHash);
 function handleHash() {
   const hash = window.location.hash;
-  if (hash?.startsWith('#topic-')) scrollToTopic(hash.replace('#topic-', ''));
-}
-
-// ── POPUP ─────────────────────────────────────────────
-function showPopup(msg) {
-  document.getElementById('popupIcon').textContent = '⚠️';
-  document.getElementById('popupTitle').textContent = 'Notice';
-  document.getElementById('popupContent').textContent = msg;
-  document.getElementById('popupActions').innerHTML =
-    `<button class="popup-btn confirm-ok" onclick="closePopup()">Got it</button>`;
-  document.getElementById('customPopup').style.display = 'flex';
-}
-
-function closePopup() {
-  document.getElementById('customPopup').style.display = 'none';
-}
-
-function showConfirmPopup(msg, onConfirm, opts = {}) {
-  const icon = opts.icon || '🚪';
-  const title = opts.title || 'Are you sure?';
-  const confirmLabel = opts.confirmLabel || 'Confirm';
-  const confirmClass = opts.danger ? 'confirm-danger' : 'confirm-ok';
-
-  document.getElementById('popupIcon').textContent = icon;
-  document.getElementById('popupTitle').textContent = title;
-  document.getElementById('popupContent').textContent = msg;
-  document.getElementById('popupActions').innerHTML = `
-    <button class="popup-btn cancel" onclick="closePopup()">Cancel</button>
-    <button class="popup-btn ${confirmClass}" id="popupConfirmBtn">${confirmLabel}</button>
-  `;
-  document.getElementById('popupConfirmBtn').onclick = () => { closePopup(); onConfirm(); };
-  document.getElementById('customPopup').style.display = 'flex';
-}
-
-// ── TOAST ─────────────────────────────────────────────
-function showToast(msg, type = '') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
-}
-
-// ── SPINNER HELPERS ──────────────────────────────────
-function showSpinner(label = 'Loading…') {
-  const el = document.getElementById('spinnerOverlay');
-  const lb = document.getElementById('spinnerLabel');
-  if (lb) lb.textContent = label;
-  el.style.display = 'flex';
-}
-function hideSpinner() {
-  document.getElementById('spinnerOverlay').style.display = 'none';
-}
-
-// ── UTILS ─────────────────────────────────────────────
-function escHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  if (hash?.startsWith('#topic-')) {
+    const id = hash.replace('#topic-', '');
+    expanded[id] = true;
+    filterAndRender();
+    setTimeout(() => {
+      const el = document.getElementById('topic-' + id);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+  }
 }
