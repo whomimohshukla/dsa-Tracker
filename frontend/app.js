@@ -36,6 +36,14 @@ function refreshModalIfOpen(questionId) {
   }
 }
 
+function toLocalDateKey(dateInput) {
+  const date = new Date(dateInput);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 // ── INIT ───────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   applyTrackTheme(currentTrack);
@@ -244,26 +252,27 @@ function renderStreakHeatmap() {
   const solvedDates = {};
   Object.values(progressMap).forEach(p => {
     if (p.status === 'solved' && p.solvedAt) {
-      const key = new Date(p.solvedAt).toISOString().slice(0,10);
+      const key = toLocalDateKey(p.solvedAt);
       solvedDates[key] = (solvedDates[key] || 0) + 1;
     }
   });
   const today  = new Date();
+  const todayKey = toLocalDateKey(today);
   const weeks  = 53;
-  const start  = new Date(today);
+  const start  = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   start.setDate(today.getDate() - (weeks * 7 - (today.getDay() + 1)));
   container.innerHTML = '';
   for (let w = 0; w < weeks; w++) {
     for (let d = 0; d < 7; d++) {
       const date = new Date(start);
       date.setDate(start.getDate() + w * 7 + d);
-      const key   = date.toISOString().slice(0,10);
+      const key   = toLocalDateKey(date);
       const count = solvedDates[key] || 0;
       const dot   = document.createElement('div');
       dot.className = 'streak-dot';
       const level = count >= 4 ? 4 : count;
       dot.classList.add('level-' + level);
-      if (key === today.toISOString().slice(0,10)) dot.classList.add('today');
+      if (key === todayKey) dot.classList.add('today');
       dot.title = `${key}: ${count ? count + ' solved' : 'No activity'}`;
       container.appendChild(dot);
     }
@@ -295,6 +304,7 @@ async function toggleSolved(questionId, fromModal = false) {
 
   updateRowUI(questionId);
   updateAllStats();
+  renderStreakHeatmap();
   try {
     await apiFetch('/progress/toggle', { method: 'POST', body: JSON.stringify({ questionId }) });
     refreshModalIfOpen(questionId);
@@ -305,6 +315,7 @@ async function toggleSolved(questionId, fromModal = false) {
     else delete progressMap[questionId];
     updateRowUI(questionId);
     updateAllStats();
+    renderStreakHeatmap();
     showToast('Error saving', 'error');
   }
 }
