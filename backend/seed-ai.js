@@ -3207,6 +3207,54 @@ const aiTopics = [
 
 ];
 
+function deriveAiDescription(topic) {
+  return `Build practical understanding of ${topic.title.toLowerCase()} as part of ${topic.phase}. Focus on the core concepts, where this topic appears in real AI engineering work, and how it connects to the next roadmap steps. Aim to finish with enough intuition to implement a small hands-on exercise and explain the tradeoffs clearly.`;
+}
+
+function deriveAiPrerequisites(topic) {
+  if (topic.phaseIndex <= 1) return [];
+  if (topic.phaseIndex === 2) return ['Python Crash Course'];
+  if (topic.phaseIndex === 3) return ['Probability & Statistics', 'Feature Engineering'];
+  if (topic.phaseIndex === 4) return ['Calculus for ML', 'Linear Algebra for ML'];
+  if (topic.phaseIndex === 5) return ['Neural Networks from Scratch', 'PyTorch Fundamentals'];
+  if (topic.phaseIndex === 6) return ['Model Evaluation', 'FastAPI for ML APIs'];
+  if (topic.phaseIndex >= 7) return ['Docker for ML', 'FastAPI for ML APIs'];
+  return [];
+}
+
+function deriveAiPracticeTasks(topic) {
+  return [
+    `Summarize the main ideas of ${topic.title} in your own words and note where you would use it in production.`,
+    `Build a small hands-on demo for ${topic.title} and document the results.`,
+    `Write down the top 3 failure cases or tradeoffs you need to remember for ${topic.title}.`,
+  ];
+}
+
+function deriveAiYoutubeResources(topic) {
+  return [
+    yt(`${topic.title} overview`, `https://www.youtube.com/results?search_query=${encodeURIComponent(`${topic.title} AI engineering tutorial`)}`, 'YouTube Search'),
+  ];
+}
+
+function deriveAiDocResources(topic) {
+  return [
+    doc(`${topic.title} reference search`, `https://www.google.com/search?q=${encodeURIComponent(`${topic.title} documentation AI engineering`)}`, 'doc'),
+  ];
+}
+
+function enrichAiTopic(topic) {
+  return {
+    ...topic,
+    description: topic.description || deriveAiDescription(topic),
+    prerequisites: topic.prerequisites ?? deriveAiPrerequisites(topic),
+    practiceTasks: topic.practiceTasks?.length ? topic.practiceTasks : deriveAiPracticeTasks(topic),
+    youtubeResources: topic.youtubeResources?.length ? topic.youtubeResources : deriveAiYoutubeResources(topic),
+    docResources: topic.docResources?.length ? topic.docResources : deriveAiDocResources(topic),
+  };
+}
+
+const enrichedAiTopics = aiTopics.map(enrichAiTopic);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SEED RUNNER
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3229,12 +3277,12 @@ async function seedAI() {
     }
 
     // Insert AI roadmap
-    const inserted = await Question.insertMany(aiTopics);
+    const inserted = await Question.insertMany(enrichedAiTopics);
     console.log(`\n🚀 Inserted ${inserted.length} AI/ML topics successfully!\n`);
 
     // Summary by phase
     const summary = {};
-    for (const t of aiTopics) {
+    for (const t of enrichedAiTopics) {
       summary[t.phase] = (summary[t.phase] || 0) + 1;
     }
     console.log('📊 Topics by Phase:');
