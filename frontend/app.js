@@ -71,6 +71,7 @@ function getQuestionVideos(q) {
 // ── INIT ───────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   applyTrackTheme(currentTrack);
+  syncSidebarToggle();
   if (token) {
     await bootstrap();
   } else {
@@ -507,8 +508,29 @@ function addNavItem(nav, t) {
   nav.appendChild(el);
 }
 
-function toggleSidebar()  { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('open'); }
-function closeSidebar()   { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebarBackdrop').classList.remove('open'); }
+function syncSidebarToggle() {
+  const sidebar = document.getElementById('sidebar');
+  const menuBtn = document.getElementById('menuBtn');
+  const isOpen = !!sidebar?.classList.contains('open');
+
+  if (!menuBtn) return;
+
+  menuBtn.textContent = isOpen ? '✕' : '☰';
+  menuBtn.setAttribute('aria-label', isOpen ? 'Close sidebar' : 'Open sidebar');
+  menuBtn.classList.toggle('open', isOpen);
+}
+
+function toggleSidebar()  {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebarBackdrop').classList.toggle('open');
+  syncSidebarToggle();
+}
+
+function closeSidebar()   {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarBackdrop').classList.remove('open');
+  syncSidebarToggle();
+}
 
 // ── FILTER & RENDER ────────────────────────────────────────
 function filterAndRender() {

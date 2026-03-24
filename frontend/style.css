@@ -446,6 +446,11 @@ body {
   display: none;
 }
 .menu-btn:hover { border-color: var(--accent); color: var(--accent); }
+.menu-btn.open {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-dim);
+}
 .topbar-center { flex: 1; display: flex; align-items: center; gap: 10px; overflow-x: auto; min-width: 0; }
 .topbar-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: 100%; }
 .search-wrap { position: relative; min-width: 0; }
@@ -1170,6 +1175,24 @@ tr.just-solved td { background: var(--accent-dim); }
   .track-switcher, .mini-stats, .sidebar-actions, .sidebar-progress-wrap, .sidebar-user {
     padding-left: 12px;
     padding-right: 12px;
+  }
+  .sidebar-user {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+  }
+  .user-name,
+  .user-streak {
+    white-space: normal;
+  }
+  .logout-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 34px;
+    min-height: 34px;
+    padding: 6px 8px;
   }
   .hero-stats { grid-template-columns: 1fr; }
   .phase-tabs { width: 100%; }
