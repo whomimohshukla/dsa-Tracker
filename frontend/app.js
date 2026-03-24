@@ -18,6 +18,24 @@ let currentTrack= localStorage.getItem('nexus_track') || 'dsa';
 let currentPhase= 0; // 0 = all phases
 let allPhases   = [];
 
+function getQuestionProgress(questionId) {
+  return progressMap[questionId] || null;
+}
+
+function isQuestionSolved(questionId) {
+  return getQuestionProgress(questionId)?.status === 'solved';
+}
+
+function isQuestionRevised(questionId) {
+  return !!getQuestionProgress(questionId)?.revisionMarked;
+}
+
+function refreshModalIfOpen(questionId) {
+  if (modalQ?.questionId === questionId) {
+    openModal(modalQ.topicId, questionId);
+  }
+}
+
 // ── INIT ───────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   applyTrackTheme(currentTrack);
@@ -225,7 +243,7 @@ function renderStreakHeatmap() {
   if (!container) return;
   const solvedDates = {};
   Object.values(progressMap).forEach(p => {
-    if (p.solvedAt) {
+    if (p.status === 'solved' && p.solvedAt) {
       const key = new Date(p.solvedAt).toISOString().slice(0,10);
       solvedDates[key] = (solvedDates[key] || 0) + 1;
     }
@@ -254,32 +272,98 @@ function renderStreakHeatmap() {
 
 // ── TOGGLE SOLVED ──────────────────────────────────────────
 async function toggleSolved(questionId, fromModal = false) {
-  const wasSolved = !!progressMap[questionId];
-  if (wasSolved) { delete progressMap[questionId]; }
-  else           { progressMap[questionId] = { status: 'solved', solvedAt: new Date().toISOString() }; }
+  const previous = getQuestionProgress(questionId);
+  const wasSolved = isQuestionSolved(questionId);
+
+  if (wasSolved) {
+    if (previous?.revisionMarked) {
+      progressMap[questionId] = {
+        ...previous,
+        status: 'attempted',
+        solvedAt: null,
+      };
+    } else {
+      delete progressMap[questionId];
+    }
+  } else {
+    progressMap[questionId] = {
+      ...previous,
+      status: 'solved',
+      solvedAt: new Date().toISOString(),
+    };
+  }
+
   updateRowUI(questionId);
   updateAllStats();
   try {
     await apiFetch('/progress/toggle', { method: 'POST', body: JSON.stringify({ questionId }) });
+    refreshModalIfOpen(questionId);
     showToast(wasSolved ? '↩ Unmarked' : '✅ Marked solved!', wasSolved ? '' : 'success');
     if (fromModal) renderModalActions();
   } catch {
-    // rollback
-    if (wasSolved) { progressMap[questionId] = { status: 'solved' }; }
-    else           { delete progressMap[questionId]; }
+    if (previous) progressMap[questionId] = previous;
+    else delete progressMap[questionId];
     updateRowUI(questionId);
     updateAllStats();
     showToast('Error saving', 'error');
   }
 }
 
+async function toggleRevision(questionId, fromModal = false) {
+  const previous = getQuestionProgress(questionId);
+  const wasRevised = isQuestionRevised(questionId);
+
+  if (previous) {
+    const nextRevisionMarked = !wasRevised;
+    if (nextRevisionMarked || previous.status === 'solved') {
+      progressMap[questionId] = {
+        ...previous,
+        revisionMarked: nextRevisionMarked,
+        revisionMarkedAt: nextRevisionMarked ? new Date().toISOString() : null,
+      };
+    } else {
+      delete progressMap[questionId];
+    }
+  } else {
+    progressMap[questionId] = {
+      status: 'attempted',
+      solvedAt: null,
+      revisionMarked: true,
+      revisionMarkedAt: new Date().toISOString(),
+    };
+  }
+
+  updateRowUI(questionId);
+  updateAllStats();
+  try {
+    await apiFetch('/progress/revision', { method: 'POST', body: JSON.stringify({ questionId }) });
+    refreshModalIfOpen(questionId);
+    showToast(wasRevised ? 'Revision removed' : 'Revision marked', 'success');
+    if (fromModal) renderModalActions();
+  } catch {
+    if (previous) progressMap[questionId] = previous;
+    else delete progressMap[questionId];
+    updateRowUI(questionId);
+    updateAllStats();
+    showToast('Error saving revision', 'error');
+  }
+}
+
 function updateRowUI(questionId) {
-  const isSolved = !!progressMap[questionId];
+  const isSolved = isQuestionSolved(questionId);
+  const isRevised = isQuestionRevised(questionId);
   // DSA row
   const row = document.getElementById('row_' + questionId);
   if (row) {
     row.classList.toggle('solved', isSolved);
+    row.classList.toggle('revised', isRevised);
     const cb = row.querySelector('.q-check'); if (cb) cb.checked = isSolved;
+    const revBtn = row.querySelector('.revision-btn');
+    if (revBtn) {
+      revBtn.classList.toggle('active', isRevised);
+      revBtn.textContent = isRevised ? 'Revised' : 'Revise';
+      revBtn.title = isRevised ? 'Remove revision mark' : 'Mark for revision';
+    }
     const numEl = row.querySelector('.q-num');
     if (numEl) numEl.textContent = isSolved ? '✓' : (numEl.dataset.idx || '');
     if (isSolved) { row.classList.add('just-solved'); setTimeout(() => row.classList.remove('just-solved'), 400); }
@@ -301,7 +385,7 @@ function updateRowUI(questionId) {
 function updateTopicBar(topicId) {
   const t = topics.find(t => t._id === topicId);
   if (!t) return;
-  const done = t.questions.filter(q => progressMap[q._id]).length;
+  const done = t.questions.filter(q => isQuestionSolved(q._id)).length;
   const pct  = Math.round(done / t.questions.length * 100);
   const bar = document.querySelector(`.topic-bar-fill[data-id="${topicId}"]`);
   if (bar) bar.style.width = pct + '%';
@@ -319,7 +403,7 @@ function computeStats() {
   topics.forEach(t => t.questions.forEach(q => {
     total++;
     if (q.difficulty === 'Easy') easy++; else if (q.difficulty === 'Medium') med++; else hard++;
-    if (progressMap[q._id]) {
+    if (isQuestionSolved(q._id)) {
       done++;
       if (q.difficulty === 'Easy') eD++; else if (q.difficulty === 'Medium') mD++; else hD++;
     }
@@ -369,7 +453,7 @@ function buildSidebar() {
 }
 
 function addNavItem(nav, t) {
-  const done = t.questions.filter(q => progressMap[q._id]).length;
+  const done = t.questions.filter(q => isQuestionSolved(q._id)).length;
   const el = document.createElement('a');
   el.className = 'nav-item';
   el.dataset.id = t._id;
@@ -411,7 +495,7 @@ function renderDsaTopics() {
   topics.forEach((t, ti) => {
     const filtered = t.questions.filter(q => {
       if (diff && q.difficulty !== diff) return false;
-      const solved = !!progressMap[q._id];
+      const solved = isQuestionSolved(q._id);
       if (status === 'done' && !solved) return false;
       if (status === 'todo' &&  solved) return false;
       if (search) {
@@ -423,7 +507,7 @@ function renderDsaTopics() {
     if (!filtered.length) return;
     anyVisible = true;
 
-    const done = t.questions.filter(q => progressMap[q._id]).length;
+    const done = t.questions.filter(q => isQuestionSolved(q._id)).length;
     const pct  = Math.round(done / t.questions.length * 100);
     const isOpen = expanded[t._id] !== false;
     const section = document.createElement('div');
@@ -449,7 +533,7 @@ function renderDsaTopics() {
             <th class="col-check">✓</th><th class="col-num">#</th>
             <th class="col-name">Problem</th><th class="col-diff">Level</th>
             <th class="col-pat">Pattern</th><th class="col-co">Companies</th>
-            <th class="col-lc">Link</th><th class="col-info">Info</th>
+            <th class="col-lc">Link</th><th class="col-revision">Revision</th><th class="col-info">Info</th>
           </tr></thead>
           <tbody id="qbody-${t._id}"></tbody>
         </table>
@@ -457,11 +541,12 @@ function renderDsaTopics() {
     content.appendChild(section);
     const tbody = document.getElementById('qbody-' + t._id);
     filtered.forEach((q, i) => {
-      const isSolved = !!progressMap[q._id];
+      const isSolved = isQuestionSolved(q._id);
+      const isRevised = isQuestionRevised(q._id);
       const isGFG = (q.lcNumber||'').includes('GFG') || (q.lcNumber||'').includes('SPOJ');
       const tr = document.createElement('tr');
       tr.id = 'row_' + q._id; tr.dataset.topicId = t._id;
-      tr.className = isSolved ? 'solved' : '';
+      tr.className = `${isSolved ? 'solved' : ''}${isRevised ? ' revised' : ''}`.trim();
       tr.innerHTML = `
         <td class="col-check"><input type="checkbox" class="q-check" ${isSolved?'checked':''} onchange="toggleSolved('${q._id}')"/></td>
         <td class="col-num"><div class="q-num" data-idx="${i+1}">${isSolved?'✓':i+1}</div></td>
@@ -470,6 +555,7 @@ function renderDsaTopics() {
         <td class="col-pat">${q.pattern||''}</td>
         <td class="col-co">${(q.companies||[]).slice(0,3).join(' · ')}</td>
         <td class="col-lc"><a href="${q.lcLink}" target="_blank" class="lc-link${isGFG?' gfg-link':''}" onclick="event.stopPropagation()">${q.lcNumber} ↗</a></td>
+        <td class="col-revision"><button class="revision-btn${isRevised?' active':''}" onclick="event.stopPropagation();toggleRevision('${q._id}')" title="${isRevised ? 'Remove revision mark' : 'Mark for revision'}">${isRevised ? 'Revised' : 'Revise'}</button></td>
         <td class="col-info"><button class="info-btn" onclick="openModal('${t._id}','${q._id}')">?</button></td>`;
       tbody.appendChild(tr);
     });
@@ -509,7 +595,7 @@ function renderAiTopics() {
     }
 
     group.items.forEach((t, ti) => {
-      const done    = t.questions.filter(q => progressMap[q._id]).length;
+      const done    = t.questions.filter(q => isQuestionSolved(q._id)).length;
       const total   = t.questions.length;
       const pct     = Math.round(done / total * 100);
       const isOpen  = expanded[t._id] !== false;
@@ -553,7 +639,7 @@ function renderAiTopics() {
         ? `<div class="modal-tip">⭐ <strong>Pro Tip:</strong> ${q.proTip}</div>` : '';
 
       const multiQ = total > 1
-        ? `<div class="ai-section-label">📋 All ${total} sub-topics</div><ul class="ai-tasks">${t.questions.map(q2 => `<li style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="accent-color:var(--accent);flex-shrink:0" ${progressMap[q2._id]?'checked':''} onchange="toggleSolved('${q2._id}')"> ${q2.title} <span class="badge badge-${q2.difficulty.toLowerCase()}" style="font-size:.63rem">${q2.difficulty}</span></li>`).join('')}</ul>` : '';
+        ? `<div class="ai-section-label">📋 All ${total} sub-topics</div><ul class="ai-tasks">${t.questions.map(q2 => `<li style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="accent-color:var(--accent);flex-shrink:0" ${isQuestionSolved(q2._id)?'checked':''} onchange="toggleSolved('${q2._id}')"> ${q2.title} <span class="badge badge-${q2.difficulty.toLowerCase()}" style="font-size:.63rem">${q2.difficulty}</span></li>`).join('')}</ul>` : '';
 
       cardEl.innerHTML = `
         <div class="ai-card-header" onclick="toggleAiCard('${t._id}')">
@@ -622,7 +708,8 @@ function openModal(topicId, questionId) {
   const t = topics.find(t => t._id === topicId); if (!t) return;
   const q = t.questions.find(q => q._id === questionId); if (!q) return;
   modalQ = { topicId, questionId, q };
-  const isSolved = !!progressMap[questionId];
+  const isSolved = isQuestionSolved(questionId);
+  const isRevised = isQuestionRevised(questionId);
   const isGFG = (q.lcNumber||'').includes('GFG') || (q.lcNumber||'').includes('SPOJ');
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-title">${q.title}</div>
@@ -630,6 +717,7 @@ function openModal(topicId, questionId) {
       <span class="badge badge-${q.difficulty.toLowerCase()}">${q.difficulty}</span>
       <span class="badge" style="background:var(--bg-active);color:var(--text-secondary)">${t.emoji} ${t.name}</span>
       ${isSolved ? '<span class="badge" style="background:var(--green-dim);color:var(--green)">✓ Solved</span>' : ''}
+      ${isRevised ? '<span class="badge revision-badge">⟳ Revision</span>' : ''}
     </div>
     <div class="modal-grid">
       <div class="modal-info-box"><div class="modal-info-label">Companies</div><div class="modal-info-val" style="font-size:.78rem">${(q.companies||[]).join(' · ')||'—'}</div></div>
@@ -654,10 +742,12 @@ function renderModalActions() {
   if (!modalQ) return;
   const { questionId, q } = modalQ;
   const isGFG    = (q.lcNumber||'').includes('GFG');
-  const isSolved = !!progressMap[questionId];
+  const isSolved = isQuestionSolved(questionId);
+  const isRevised = isQuestionRevised(questionId);
   const el = document.getElementById('modalActions');
   if (el) el.innerHTML = `
     <a href="${q.lcLink}" target="_blank" class="modal-lc-btn">Open ${isGFG?'GFG':'LeetCode'} ↗</a>
+    <button class="modal-revision-btn${isRevised ? ' active' : ''}" onclick="toggleRevision('${questionId}',true)">${isRevised ? 'Remove Revision' : 'Mark Revision'}</button>
     ${isSolved
       ? `<button class="modal-unsolve-btn" onclick="toggleSolved('${questionId}',true)">Unmark ✗</button>`
       : `<button class="modal-solve-btn" onclick="toggleSolved('${questionId}',true)">Mark Solved ✓</button>`}`;

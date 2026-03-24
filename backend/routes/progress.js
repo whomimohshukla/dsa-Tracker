@@ -23,6 +23,8 @@ router.get('/', async (req, res) => {
         solvedAt: p.solvedAt,
         notes: p.notes,
         rating: p.rating,
+        revisionMarked: !!p.revisionMarked,
+        revisionMarkedAt: p.revisionMarkedAt,
       };
     });
 
@@ -91,13 +93,29 @@ router.post('/toggle', async (req, res) => {
 
     let action, progress;
 
-    if (existing) {
-      // Toggle: if already solved, remove progress
-      await Progress.deleteOne({ userId: req.user._id, questionId });
+    if (existing && existing.status === 'solved') {
+      const hasExtraState = existing.revisionMarked || existing.notes || existing.rating !== null;
+
+      if (hasExtraState) {
+        existing.status = 'attempted';
+        existing.solvedAt = null;
+        progress = await existing.save();
+      } else {
+        await Progress.deleteOne({ userId: req.user._id, questionId });
+        progress = null;
+      }
+
       action = 'removed';
-      progress = null;
+    } else if (existing) {
+      existing.status = status;
+      existing.solvedAt = new Date();
+      if (notes) existing.notes = notes;
+      if (rating !== null) existing.rating = rating;
+      progress = await existing.save();
+      action = 'added';
+
+      await updateStreak(req.user);
     } else {
-      // Mark as solved
       progress = await Progress.create({
         userId: req.user._id,
         questionId,
@@ -105,11 +123,56 @@ router.post('/toggle', async (req, res) => {
         status,
         notes,
         rating,
+        solvedAt: new Date(),
       });
       action = 'added';
 
-      // Update streak
       await updateStreak(req.user);
+    }
+
+    res.json({ success: true, action, progress });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// POST /api/progress/revision — toggle revision marker for a question
+router.post('/revision', async (req, res) => {
+  try {
+    const { questionId } = req.body;
+    if (!questionId)
+      return res.status(400).json({ success: false, message: 'questionId required' });
+
+    const question = await Question.findById(questionId);
+    if (!question)
+      return res.status(404).json({ success: false, message: 'Question not found' });
+
+    const existing = await Progress.findOne({ userId: req.user._id, questionId });
+
+    let action, progress;
+
+    if (existing) {
+      existing.revisionMarked = !existing.revisionMarked;
+      existing.revisionMarkedAt = existing.revisionMarked ? new Date() : null;
+
+      if (existing.status !== 'solved' && !existing.revisionMarked && !existing.notes && existing.rating === null) {
+        await Progress.deleteOne({ _id: existing._id });
+        progress = null;
+      } else {
+        progress = await existing.save();
+      }
+
+      action = existing.revisionMarked ? 'added' : 'removed';
+    } else {
+      progress = await Progress.create({
+        userId: req.user._id,
+        questionId,
+        topicId: question.topicId,
+        status: 'attempted',
+        revisionMarked: true,
+        revisionMarkedAt: new Date(),
+      });
+      action = 'added';
     }
 
     res.json({ success: true, action, progress });

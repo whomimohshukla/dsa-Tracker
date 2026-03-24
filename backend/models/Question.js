@@ -116,6 +116,9 @@ const QuestionSchema = new mongoose.Schema({
   features: { type: [String], default: [] },
   expectedOutcome: { type: String, default: '' },
 
+  // Legacy global flag. User-specific revision state is stored in Progress.
+  revisionMarked: { type: Boolean, default: false },
+
 }, {
   timestamps: true,
 });

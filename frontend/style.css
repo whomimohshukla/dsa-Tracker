@@ -428,11 +428,20 @@ tr.just-solved td { animation: flash 0.3s ease; }
 .col-pat    { width: 160px; color: var(--text-secondary); font-size: 0.8rem; }
 .col-co     { width: 160px; color: var(--text-dim); font-size: 0.75rem; }
 .col-lc     { width: 80px; }
+.col-revision { width: 100px; text-align: center; }
 .col-info   { width: 44px; text-align: center; }
 
 .q-check { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 .q-num { width: 26px; height: 26px; border-radius: 6px; background: var(--bg-raised); display: flex; align-items: center; justify-content: center; font-size: 0.72rem; font-family: var(--mono); color: var(--text-secondary); }
 .q-table tr.solved .q-num { background: var(--accent-dim); color: var(--accent); }
+.q-table tr.revised td { background: linear-gradient(90deg, rgba(255, 193, 7, 0.08), transparent); }
+.revision-btn {
+  padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg-raised); color: var(--text-secondary); cursor: pointer;
+  font-size: 0.72rem; font-weight: 700; transition: all var(--trans);
+}
+.revision-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+.revision-btn.active { background: rgba(255, 193, 7, 0.14); border-color: var(--yellow); color: var(--yellow); }
 
 .badge { display: inline-block; padding: 3px 9px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; letter-spacing: .04em; }
 .badge-easy   { background: #00e67620; color: var(--green); border: 1px solid #00e67640; }
@@ -580,8 +589,11 @@ tr.just-solved td { animation: flash 0.3s ease; }
 .modal-lc-btn:hover { filter: brightness(1.1); }
 .modal-solve-btn { padding: 10px 18px; background: var(--accent); color: #000; border: none; border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); font-weight: 700; font-size: 0.85rem; transition: filter var(--trans); }
 .modal-solve-btn:hover { filter: brightness(1.1); }
+.modal-revision-btn { padding: 10px 18px; background: rgba(255, 193, 7, 0.14); color: var(--yellow); border: 1px solid rgba(255, 193, 7, 0.4); border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); font-weight: 700; font-size: 0.85rem; transition: all var(--trans); }
+.modal-revision-btn:hover, .modal-revision-btn.active { filter: brightness(1.08); border-color: var(--yellow); }
 .modal-unsolve-btn { padding: 10px 18px; background: var(--bg-raised); color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-family: var(--font); font-weight: 600; font-size: 0.85rem; transition: all var(--trans); }
 .modal-unsolve-btn:hover { border-color: var(--red); color: var(--red); }
+.revision-badge { background: rgba(255, 193, 7, 0.14); color: var(--yellow); border: 1px solid rgba(255, 193, 7, 0.35); }
 
 /* ── TOAST ─────────────────────────────────────────────── */
 .toast {
@@ -612,5 +624,5 @@ tr.just-solved td { animation: flash 0.3s ease; }
   .hstat-n { font-size: 1.4rem; }
   .hero-title { font-size: 1.6rem; }
   .toast { bottom: 80px; right: 16px; left: 16px; text-align: center; }
-  .col-pat, .col-co { display: none; }
+  .col-pat, .col-co, .col-revision { display: none; }
 }

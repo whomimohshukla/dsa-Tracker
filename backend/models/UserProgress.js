@@ -105,6 +105,14 @@ const ProgressSchema = new mongoose.Schema({
     max: 5,
     default: null,
   },
+  revisionMarked: {
+    type: Boolean,
+    default: false,
+  },
+  revisionMarkedAt: {
+    type: Date,
+    default: null,
+  },
 }, {
   timestamps: true,
 });
