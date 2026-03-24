@@ -268,6 +268,75 @@ const QUESTIONS = [
   { topicId:'backtracking', topicName:'Recursion & Backtracking', topicEmoji:'🔄', orderIndex:12, title:'Word Search', difficulty:'Medium', pattern:'DFS + Backtrack on Grid', companies:['Amazon','Microsoft','Google'], lcLink:'https://leetcode.com/problems/word-search/', lcNumber:'LC #79', platform:'LeetCode', timeComplexity:'O(m×n×4^L)', spaceComplexity:'O(L)', hint:'DFS from each cell. Mark visited by modifying board. Match char by char.', approach:'def dfs(i,j,k):\n  If k==len(word): return True\n  If OOB or board[i][j]!=word[k]: return False\n  temp=board[i][j]; board[i][j]="#"\n  res=any(dfs in 4 dirs)\n  board[i][j]=temp; return res', proTip:'Modify-restore avoids visited set. Early prune if remaining > remaining cells.' },
 ];
 
+const EXTRA_QUESTIONS = [
+  { topicId:'arrays', topicName:'Arrays', topicEmoji:'📊', orderIndex:26, title:'Longest Consecutive Sequence', difficulty:'Medium', pattern:'HashSet / Sequence Expansion', companies:['Amazon','Google','Meta'], lcLink:'https://leetcode.com/problems/longest-consecutive-sequence/', lcNumber:'LC #128', platform:'LeetCode', timeComplexity:'O(n)', spaceComplexity:'O(n)', hint:'Start only from numbers that do not have a predecessor. Expand forward to count sequence length.', approach:'Put all nums in a set\nFor each num:\n  If num-1 not in set: start sequence\n    while curr+1 in set: curr++, len++\nTrack maximum length', proTip:'Do not expand from every number. Start only from sequence heads to keep it O(n).' },
+  { topicId:'linkedlists', topicName:'Linked Lists', topicEmoji:'🔗', orderIndex:19, title:'LRU Cache', difficulty:'Medium', pattern:'HashMap + Doubly Linked List', companies:['Amazon','Microsoft','Meta'], lcLink:'https://leetcode.com/problems/lru-cache/', lcNumber:'LC #146', platform:'LeetCode', timeComplexity:'O(1)', spaceComplexity:'O(capacity)', hint:'HashMap gives O(1) access, doubly linked list maintains recency order.', approach:'Use hashmap key->node\nUse DLL with most recent near head and least recent near tail\nget: move node to head\nput: update existing or insert new; evict tail if over capacity', proTip:'This is one of the most frequently asked design-style DSA questions. Know the DLL operations cleanly.' },
+  { topicId:'linkedlists', topicName:'Linked Lists', topicEmoji:'🔗', orderIndex:20, title:'Merge k Sorted Lists', difficulty:'Hard', pattern:'Min Heap / Divide and Conquer', companies:['Amazon','Google','Microsoft'], lcLink:'https://leetcode.com/problems/merge-k-sorted-lists/', lcNumber:'LC #23', platform:'LeetCode', timeComplexity:'O(N log k)', spaceComplexity:'O(k)', hint:'Push the head of each list into a min heap. Pop smallest, append, then push next node.', approach:'Push (node.val, listIndex, node) for all non-null heads\nWhile heap:\n  pop smallest, append to answer\n  if node.next: push node.next\nReturn merged list', proTip:'Divide and conquer pairwise merge is another clean approach with the same asymptotic complexity.' },
+  { topicId:'stacks', topicName:'Stacks & Queues', topicEmoji:'📚', orderIndex:16, title:'Implement Queue using Stacks', difficulty:'Easy', pattern:'Two Stacks', companies:['Amazon','Google','Adobe'], lcLink:'https://leetcode.com/problems/implement-queue-using-stacks/', lcNumber:'LC #232', platform:'LeetCode', timeComplexity:'Amortized O(1)', spaceComplexity:'O(n)', hint:'Use one input stack and one output stack. Move only when output stack is empty.', approach:'push: add to input\npop/peek: if output empty, move all from input to output\nThen pop/peek from output', proTip:'The amortized analysis is the interview point. Each element moves at most twice.' },
+  { topicId:'trees', topicName:'Trees', topicEmoji:'🌳', orderIndex:21, title:'Binary Tree Level Order Traversal', difficulty:'Medium', pattern:'BFS / Queue', companies:['Amazon','Microsoft','Meta'], lcLink:'https://leetcode.com/problems/binary-tree-level-order-traversal/', lcNumber:'LC #102', platform:'LeetCode', timeComplexity:'O(n)', spaceComplexity:'O(n)', hint:'Use a queue and process nodes level by level.', approach:'queue=[root]\nWhile queue not empty:\n  size=len(queue); level=[]\n  repeat size times: pop front, add children, collect values\n  append level to answer', proTip:'This is a core traversal question and base for zigzag, right side view, and average-of-levels variants.' },
+  { topicId:'trees', topicName:'Trees', topicEmoji:'🌳', orderIndex:22, title:'Validate Binary Search Tree', difficulty:'Medium', pattern:'DFS + Bounds', companies:['Amazon','Google','Microsoft'], lcLink:'https://leetcode.com/problems/validate-binary-search-tree/', lcNumber:'LC #98', platform:'LeetCode', timeComplexity:'O(n)', spaceComplexity:'O(h)', hint:'Each node must lie strictly between a valid low and high bound.', approach:'dfs(node, low, high)\n  if not node: return True\n  if node.val <= low or node.val >= high: return False\n  return dfs(left, low, node.val) and dfs(right, node.val, high)', proTip:'Using only parent comparison is wrong. The global bounds idea is the real insight.' },
+  { topicId:'trees', topicName:'Trees', topicEmoji:'🌳', orderIndex:23, title:'Lowest Common Ancestor of a Binary Tree', difficulty:'Medium', pattern:'Tree DFS', companies:['Amazon','Meta','Google'], lcLink:'https://leetcode.com/problems/lowest-common-ancestor-of-a-binary-tree/', lcNumber:'LC #236', platform:'LeetCode', timeComplexity:'O(n)', spaceComplexity:'O(h)', hint:'If left and right DFS both return non-null, current node is the LCA.', approach:'dfs(node)\n  if node is null or node is p or q: return node\n  left=dfs(node.left), right=dfs(node.right)\n  if left and right: return node\n  return left or right', proTip:'The BST version is easier. This general binary tree version is the one commonly asked.' },
+  { topicId:'trees', topicName:'Trees', topicEmoji:'🌳', orderIndex:24, title:'Serialize and Deserialize Binary Tree', difficulty:'Hard', pattern:'Tree Traversal + Encoding', companies:['Amazon','Meta','Google'], lcLink:'https://leetcode.com/problems/serialize-and-deserialize-binary-tree/', lcNumber:'LC #297', platform:'LeetCode', timeComplexity:'O(n)', spaceComplexity:'O(n)', hint:'Preorder with null markers gives enough information to rebuild the tree.', approach:'serialize: preorder append value or # for null\njoin with commas\ndeserialize: consume tokens recursively in preorder and rebuild nodes', proTip:'Always include null markers. Without them the tree cannot be reconstructed uniquely.' },
+  { topicId:'graphs', topicName:'Graphs', topicEmoji:'🕸️', orderIndex:19, title:'Accounts Merge', difficulty:'Medium', pattern:'Graph / Union Find', companies:['Google','Meta','Amazon'], lcLink:'https://leetcode.com/problems/accounts-merge/', lcNumber:'LC #721', platform:'LeetCode', timeComplexity:'O(N alpha(N))', spaceComplexity:'O(N)', hint:'Emails belonging to the same person become connected components.', approach:'Map each email to an account or DSU parent\nUnion emails from the same account\nGroup emails by root and output sorted emails with account name', proTip:'Union Find is usually cleaner than explicit graph traversal here.' },
+];
+
+const YOUTUBE_CHANNEL_HINTS = {
+  arrays: ['takeuforward', 'neetcode'],
+  strings: ['takeuforward', 'neetcode'],
+  linkedlists: ['takeuforward', 'neetcode'],
+  binarysearch: ['takeuforward', 'neetcode'],
+  stacks: ['takeuforward', 'neetcode'],
+  heaps: ['takeuforward', 'neetcode'],
+  trees: ['takeuforward', 'neetcode'],
+  graphs: ['takeuforward', 'neetcode'],
+  greedy: ['takeuforward', 'neetcode'],
+  dp: ['takeuforward', 'aditya verma'],
+  bit: ['takeuforward', 'neetcode'],
+  trie: ['takeuforward', 'neetcode'],
+  backtracking: ['takeuforward', 'neetcode'],
+};
+
+function buildYoutubeSearchUrl(query) {
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function buildYoutubeResources(question) {
+  const [primaryChannel = 'takeuforward', secondaryChannel = 'neetcode'] = YOUTUBE_CHANNEL_HINTS[question.topicId] || [];
+  const baseQuery = `${question.title} ${question.platform === 'LeetCode' ? 'leetcode' : question.platform} coding interview`;
+
+  return [
+    {
+      title: `${question.title} explained`,
+      url: buildYoutubeSearchUrl(`${baseQuery} ${primaryChannel}`),
+      channel: primaryChannel,
+      duration: '',
+    },
+    {
+      title: `${question.title} alternate explanation`,
+      url: buildYoutubeSearchUrl(`${baseQuery} ${secondaryChannel}`),
+      channel: secondaryChannel,
+      duration: '',
+    },
+  ];
+}
+
+function enrichDsaQuestion(question) {
+  const tags = Array.from(new Set([
+    ...(question.tags || []),
+    question.topicId,
+    ...(question.pattern ? question.pattern.split('/').map(tag => tag.trim().toLowerCase()).filter(Boolean) : []),
+  ]));
+
+  return {
+    ...question,
+    track: 'dsa',
+    tags,
+    youtubeResources: question.youtubeResources?.length ? question.youtubeResources : buildYoutubeResources(question),
+  };
+}
+
+const ALL_QUESTIONS = [...QUESTIONS, ...EXTRA_QUESTIONS].map(enrichDsaQuestion);
+
 async function seed() {
   const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/dsa_tracker';
 
@@ -279,19 +348,19 @@ async function seed() {
   console.log('🗑️   Cleared existing questions');
 
   // Insert all questions
-  const inserted = await Question.insertMany(QUESTIONS);
+  const inserted = await Question.insertMany(ALL_QUESTIONS);
   console.log(`✅  Inserted ${inserted.length} questions`);
 
   // Print topic summary
-  const topics = [...new Set(QUESTIONS.map(q => q.topicId))];
+  const topics = [...new Set(ALL_QUESTIONS.map(q => q.topicId))];
   topics.forEach(t => {
-    const count = QUESTIONS.filter(q => q.topicId === t).length;
-    const easy = QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Easy').length;
-    const med = QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Medium').length;
-    const hard = QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Hard').length;
+    const count = ALL_QUESTIONS.filter(q => q.topicId === t).length;
+    const easy = ALL_QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Easy').length;
+    const med = ALL_QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Medium').length;
+    const hard = ALL_QUESTIONS.filter(q => q.topicId === t && q.difficulty === 'Hard').length;
     console.log(`   ${t.padEnd(15)} → ${count} questions (E:${easy} M:${med} H:${hard})`);
   });
-  console.log(`\n📊  Total: ${QUESTIONS.length} questions across ${topics.length} topics`);
+  console.log(`\n📊  Total: ${ALL_QUESTIONS.length} questions across ${topics.length} topics`);
 
   await mongoose.disconnect();
   console.log('👋  Done!');

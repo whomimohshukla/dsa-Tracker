@@ -2,6 +2,27 @@ const express = require('express');
 const Question = require('../models/Question');
 const router = express.Router();
 
+const DSA_TOPIC_ORDER = [
+  'arrays',
+  'strings',
+  'linkedlists',
+  'binarysearch',
+  'stacks',
+  'heaps',
+  'trees',
+  'graphs',
+  'greedy',
+  'dp',
+  'bit',
+  'trie',
+  'backtracking',
+];
+
+function getTopicSortIndex(topicId) {
+  const index = DSA_TOPIC_ORDER.indexOf(topicId);
+  return index === -1 ? DSA_TOPIC_ORDER.length : index;
+}
+
 // GET /api/questions/topics?track=dsa|ai
 router.get('/topics', async (req, res) => {
   try {
@@ -27,7 +48,17 @@ router.get('/topics', async (req, res) => {
       }},
       { $sort: { phaseIndex: 1, _id: 1 } },
     ]);
-    res.json({ success: true, topics });
+
+    const orderedTopics = track === 'dsa'
+      ? topics
+          .map(topic => ({
+            ...topic,
+            questions: [...topic.questions].sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0)),
+          }))
+          .sort((a, b) => getTopicSortIndex(a._id) - getTopicSortIndex(b._id) || a.name.localeCompare(b.name))
+      : topics;
+
+    res.json({ success: true, topics: orderedTopics });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -67,11 +98,18 @@ router.get('/', async (req, res) => {
     if (search)     filter.$text = { $search: search };
 
     const total = await Question.countDocuments(filter);
-    const questions = await Question.find(filter)
+    let questions = await Question.find(filter)
       .sort({ phaseIndex: 1, topicId: 1, orderIndex: 1 })
       .skip((page - 1) * limit)
       .limit(Number(limit))
       .lean();
+
+    if ((track || 'dsa') === 'dsa') {
+      questions = questions.sort((a, b) => (
+        getTopicSortIndex(a.topicId) - getTopicSortIndex(b.topicId) ||
+        (a.orderIndex || 0) - (b.orderIndex || 0)
+      ));
+    }
 
     res.json({ success: true, total, count: questions.length, questions });
   } catch (err) {

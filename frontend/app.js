@@ -44,6 +44,30 @@ function toLocalDateKey(dateInput) {
   return `${year}-${month}-${day}`;
 }
 
+function buildQuestionVideoSearchUrl(q) {
+  const query = [
+    q.title,
+    q.platform === 'LeetCode' ? 'leetcode' : q.platform,
+    'coding interview explanation',
+    'takeuforward neetcode',
+  ].filter(Boolean).join(' ');
+
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+}
+
+function getQuestionVideos(q) {
+  if (q.youtubeResources?.length) {
+    return q.youtubeResources;
+  }
+
+  return [{
+    title: `Search video for ${q.title}`,
+    url: buildQuestionVideoSearchUrl(q),
+    channel: 'YouTube Search',
+    duration: '',
+  }];
+}
+
 // ── INIT ───────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', async () => {
   applyTrackTheme(currentTrack);
@@ -621,36 +645,36 @@ function renderAiTopics() {
       cardEl.style.animationDelay = (gi * 0.05 + ti * 0.03) + 's';
 
       const descHtml = q?.description
-        ? `<div class="ai-card-desc">${q.description}</div>` : '';
+        ? `<div class="ai-summary-block"><div class="ai-card-desc">${q.description}</div></div>` : '';
 
       const tasksHtml = q?.practiceTasks?.length
-        ? `<div class="ai-section-label">✅ Practice Tasks</div><ul class="ai-tasks">${q.practiceTasks.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Practice Tasks</div><ul class="ai-tasks">${q.practiceTasks.map(t => `<li><span class="ai-list-icon">•</span><span>${t}</span></li>`).join('')}</ul></div>` : '';
 
       const ytHtml = q?.youtubeResources?.length
-        ? `<div class="ai-section-label">▶ YouTube Resources</div><div class="ai-resources">${q.youtubeResources.map(r => `<a href="${r.url}" target="_blank" class="ai-res-link ai-res-yt">🎬 ${r.title}${r.duration ? ` <span style="opacity:.6">(${r.duration})</span>` : ''}</a>`).join('')}</div>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Video Resources</div><div class="ai-resource-list">${q.youtubeResources.map(r => `<a href="${r.url}" target="_blank" class="ai-resource-card ai-res-yt"><span class="ai-resource-title">${r.title}</span>${r.channel || r.duration ? `<span class="ai-resource-meta">${[r.channel, r.duration].filter(Boolean).join(' · ')}</span>` : ''}</a>`).join('')}</div></div>` : '';
 
       const docHtml = q?.docResources?.length
-        ? `<div class="ai-section-label">📖 Documentation & Papers</div><div class="ai-resources">${q.docResources.map(r => `<a href="${r.url}" target="_blank" class="ai-res-link">📄 ${r.title}</a>`).join('')}</div>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Docs And Papers</div><div class="ai-resource-list">${q.docResources.map(r => `<a href="${r.url}" target="_blank" class="ai-resource-card"><span class="ai-resource-title">${r.title}</span>${r.resourceType ? `<span class="ai-resource-meta">${r.resourceType}</span>` : ''}</a>`).join('')}</div></div>` : '';
 
       const prereqHtml = q?.prerequisites?.length
-        ? `<div class="ai-section-label">🔗 Prerequisites</div><div class="ai-prereqs">${q.prerequisites.map(p => `<span class="ai-prereq-chip">${p}</span>`).join('')}</div>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Prerequisites</div><div class="ai-prereqs">${q.prerequisites.map(p => `<span class="ai-prereq-chip">${p}</span>`).join('')}</div></div>` : '';
 
       const projectHtml = q?.isProject ? `
         <div class="project-banner">
           <strong>🚀 Project</strong>${q.problemStatement ? ` — ${q.problemStatement}` : ''}
           ${q.expectedOutcome ? `<br><strong>Goal:</strong> ${q.expectedOutcome}` : ''}
         </div>
-        ${q.techStack?.length ? `<div class="ai-section-label">⚙️ Tech Stack</div><div class="ai-tech-stack">${q.techStack.map(s => `<span class="ai-tech-chip">${s}</span>`).join('')}</div>` : ''}
-        ${q.features?.length ? `<div class="ai-section-label">✨ Features</div><ul class="ai-tasks">${q.features.map(f => `<li>${f}</li>`).join('')}</ul>` : ''}
+        ${q.techStack?.length ? `<div class="ai-content-block"><div class="ai-section-label">Tech Stack</div><div class="ai-tech-stack">${q.techStack.map(s => `<span class="ai-tech-chip">${s}</span>`).join('')}</div></div>` : ''}
+        ${q.features?.length ? `<div class="ai-content-block"><div class="ai-section-label">Features</div><ul class="ai-tasks">${q.features.map(f => `<li><span class="ai-list-icon">•</span><span>${f}</span></li>`).join('')}</ul></div>` : ''}
       ` : '';
 
       const hintHtml = q?.hint
-        ? `<div class="ai-section-label">💡 Key Insight</div><div class="modal-hint-box">${q.hint}</div>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Key Insight</div><div class="ai-insight-box">${q.hint}</div></div>` : '';
       const proTipHtml = q?.proTip
-        ? `<div class="modal-tip">⭐ <strong>Pro Tip:</strong> ${q.proTip}</div>` : '';
+        ? `<div class="ai-content-block"><div class="ai-tip-box"><strong>Pro Tip:</strong> ${q.proTip}</div></div>` : '';
 
       const multiQ = total > 1
-        ? `<div class="ai-section-label">📋 All ${total} sub-topics</div><ul class="ai-tasks">${t.questions.map(q2 => `<li style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="accent-color:var(--accent);flex-shrink:0" ${isQuestionSolved(q2._id)?'checked':''} onchange="toggleSolved('${q2._id}')"> ${q2.title} <span class="badge badge-${q2.difficulty.toLowerCase()}" style="font-size:.63rem">${q2.difficulty}</span></li>`).join('')}</ul>` : '';
+        ? `<div class="ai-content-block"><div class="ai-section-label">Sub Topics</div><ul class="ai-task-checklist">${t.questions.map(q2 => `<li><label class="ai-task-row"><input type="checkbox" ${isQuestionSolved(q2._id)?'checked':''} onchange="toggleSolved('${q2._id}')"><span class="ai-task-text">${q2.title}</span><span class="badge badge-${q2.difficulty.toLowerCase()}" style="font-size:.63rem">${q2.difficulty}</span></label></li>`).join('')}</ul></div>` : '';
 
       cardEl.innerHTML = `
         <div class="ai-card-header" onclick="toggleAiCard('${t._id}')">
@@ -673,12 +697,14 @@ function renderAiTopics() {
         <div class="ai-card-body${isOpen?' open':''}" id="tbody-${t._id}">
           ${projectHtml}
           ${descHtml}
-          ${prereqHtml}
-          ${tasksHtml}
-          ${hintHtml}
-          ${proTipHtml}
-          ${ytHtml}
-          ${docHtml}
+          <div class="ai-detail-grid">
+            ${prereqHtml}
+            ${tasksHtml}
+            ${hintHtml}
+            ${proTipHtml}
+            ${ytHtml}
+            ${docHtml}
+          </div>
           ${multiQ}
         </div>`;
 
@@ -722,6 +748,7 @@ function openModal(topicId, questionId) {
   const isSolved = isQuestionSolved(questionId);
   const isRevised = isQuestionRevised(questionId);
   const isGFG = (q.lcNumber||'').includes('GFG') || (q.lcNumber||'').includes('SPOJ');
+  const videoLinks = getQuestionVideos(q);
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-title">${q.title}</div>
     <div class="modal-meta">
@@ -739,6 +766,13 @@ function openModal(topicId, questionId) {
     ${q.timeComplexity||q.spaceComplexity ? `<div class="modal-complexity">${q.timeComplexity?`<div class="complexity-chip">⏱ ${q.timeComplexity}</div>`:''} ${q.spaceComplexity?`<div class="complexity-chip">💾 ${q.spaceComplexity}</div>`:''}</div>` : ''}
     <div class="modal-section-title">💡 Hint</div>
     <div class="modal-hint-box">${q.hint||'No hint available.'}</div>
+    <div class="modal-section-title">▶ Video Help</div>
+    <div class="modal-video-links">${videoLinks.map(video => `
+      <a href="${video.url}" target="_blank" class="modal-video-link">
+        <span>${video.title}</span>
+        <span class="modal-video-meta">${video.channel || 'Watch'}${video.duration ? ` · ${video.duration}` : ''}</span>
+      </a>
+    `).join('')}</div>
     <div class="modal-section-title">🧩 Approach</div>
     <div class="modal-approach">${q.approach||'No approach details available.'}</div>
     <div class="modal-tip">⭐ <strong>Pro Tip:</strong> ${q.proTip||q.tip||'Study the pattern carefully.'}</div>
